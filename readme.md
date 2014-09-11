@@ -10,7 +10,7 @@ INSTALL
 pip install elasticsearch
 ```
 
-* Install djang_elasticsearch
+* Install django_elasticsearch
 ```shell
 pip install git+https://github.com/liberation/django_elasticsearch.git
 ```
@@ -85,7 +85,7 @@ In this example we only override the 'boost' attribute of the 'title' field, but
 
 * serializer_class  
 defaults to ModelJsonSerializer  
-This is the class used to translate from the django model to elasticsearch document ways.
+This is the class used to translate from the django model to elasticsearch document both ways.
 
 * default_facets_fields  
 defaults to None  
@@ -103,26 +103,26 @@ You can override these methods in your model if you want to change the behavior 
 
 EsIndexable API:
 ----------------
-* es_get_doc_type (classmethod)
-defaults to ```'model-{0}'.format(cls.__name__)```
-Return a string used as document name in the index.
 
 * OPERATIONS
 - es_do_index
 - es_delete
-- es_do_update
+- es_do_update  
 Call this if you want the documents to be available right away after (re)indexation (in a TestCase probably).
 - es_create_index
 - es_flush
 - es_reindex_all
 
 * GETTERS/CONVENIENCE METHODS
-- es_get
+- es_get_doc_type (classmethod)  
+defaults to ```'model-{0}'.format(cls.__name__)```  
+Returns a string used as document name in the index.
+- es_get  
 Returns an python object of the document.
 - es_get_mapping
 - es_make_mapping
 - es_get_settings
-- es_search(cls, query, facets=None, facets_limit=5, global_facets=True)
+- es_search(cls, query, facets=None, facets_limit=5, global_facets=True)  
 Returns an EsQueryset
 - es_diff
 - es_mlt
