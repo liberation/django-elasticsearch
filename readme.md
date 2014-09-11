@@ -2,8 +2,8 @@ django_elasticsearch is a wrapper around a django Model that automate the indexa
 Note: if your elasticsearch documents/mappings are not close to django models, this package is probably not for you.
 
 INSTALL
--------
-* [Install elasticsearch and launch](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/setup.html) if it's not done already.
+=======
+* [Install and launch elasticsearch](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/setup.html) if it's not done already.
 
 * Install [py-elasticsearch](http://www.elasticsearch.org/guide/en/elasticsearch/client/python-api/current/)
 ```shell
@@ -17,7 +17,7 @@ pip install git+https://github.com/liberation/django_elasticsearch.git
 Note: no pypy package yet
 
 USAGE
------
+=====
 
 Subclass the models you wish to index/search with ```Indexable```.
 ```python
@@ -38,38 +38,38 @@ Then you can do:
 which returns an instance of a EsQueryset, it's like a django Queryset but it instanciates models from Elasticsearch sources (and thus db operations are disactivated).
 
 CONFIGURATION
--------------
+=============
 Project scope configuration (django settings):
+----------------------------------------------
 
-* ELASTICSEARCH_URL
-defaults to 'http://localhost:9200'
+* ELASTICSEARCH_URL  
+defaults to 'http://localhost:9200'  
 The url of your elasticsearch cluster/instance.
 
-* ELASTICSEARCH_AUTO_INDEX
-defaults to True
-Set to false if you want to handle the elasticsearch operations yourself. By default the creation of the index, the indexation and deletions are hooked respectively to the post_syncdb, post_save and post_delete signals.
-```warning
+* ELASTICSEARCH_AUTO_INDEX  
+defaults to True  
+Set to false if you want to handle the elasticsearch operations yourself. By default the creation of the index, the indexation and deletions are hooked respectively to the post_syncdb, post_save and post_delete signals.  
 If you have already done a syncdb, you can just call ```MyModel.es_create_index()``` to create the index/mapping.
-```
 
-* ELASTICSEARCH_SETTINGS
-no defaults
+* ELASTICSEARCH_SETTINGS  
+no defaults  
 If set, will be passed when creating any index [as is](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-create-index.html#create-index-settings). If you need different settings for different indexes/document types, you can override the ```es_create_index()``` method of your EsIndexable model.
 
 Model scope configuration:
+--------------------------
 
 Each EsIndexable model receive an Elasticsearch class that contains its options (just like the Model.Meta class).
 
-* index
-defaults to 'django'
+* index  
+defaults to 'django'  
 The elasticsearch index in which this model(document type) will be indexed.
 
-* fields
-defaults to None
+* fields  
+defaults to None  
 The fields to be indexed by elasticsearch, if let to None, all models fields will be indexed.
 
-* mapping
-defaults to None
+* mapping  
+defaults to None  
 You can override some or all of the fields mapping with this dictionnary
 Example:
 ```python
@@ -83,26 +83,26 @@ MyModel(EsIndexable, models.Model):
 ```
 In this example we only override the 'boost' attribute of the 'title' field, but there are plenty of possible configurations, see [the docs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-put-mapping.html).
 
-* serializer_class
-defaults to ModelJsonSerializer
+* serializer_class  
+defaults to ModelJsonSerializer  
 This is the class used to translate from the django model to elasticsearch document ways.
 
-* default_facets_fields
-defaults to None
+* default_facets_fields  
+defaults to None  
 Can be set to a list of fields to return as facets.
 
-* facets_limits
-defaults to 10
+* facets_limits  
+defaults to 10  
 The maximum number of facets to return per query.
 
 
 API
---- 
+===
 
 You can override these methods in your model if you want to change the behavior of the class.
 
 EsIndexable API:
-================
+----------------
 * es_get_doc_type (classmethod)
 defaults to ```'model-{0}'.format(cls.__name__)```
 Return a string used as document name in the index.
@@ -129,7 +129,7 @@ Returns an EsQueryset
 
 
 EsQueryset API:
-===============
+---------------
 This class is as close as possible to a standard relational db Queryset, however the db operations (update and delete) are disactivated (i'm open for discution of how to implement these). Note that just like regular Querysets, EsQuerysets are lazy, they can be ordered, filtered and faceted.
 
 To access the facets you can use the facets property of the EsQueryset:
@@ -151,15 +151,15 @@ Note that es_search automatically add the default facets set on the model to the
 
 
 CONTRIB
--------
+=======
 
-* restframework.ElasticsearchFilterBackend
+* restframework.ElasticsearchFilterBackend  
 A filter backend for [rest framework](http://www.django-rest-framework.org/) that returns a EsQueryset.
 
-* restframework.FacetedListModelMixin
+* restframework.FacetedListModelMixin  
 A viewset mixin that adds the facets to the response data in case the ElasticsearchFilterBackend was used.
 
-* taggit.TaggitSerializer
+* taggit.TaggitSerializer  
 Not really working in all cases :(
 
 
