@@ -3,8 +3,7 @@ from django_elasticsearch.serializers import ModelJsonSerializer
 
 class TaggitSerializer(ModelJsonSerializer):
     """
-    Serialize a model with its tags,
-    use the es_serializer_class attribute of your model
+    Serialize a model with its tags
     """
     tags_attribute_name = 'tags'
 

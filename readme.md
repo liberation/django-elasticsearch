@@ -32,7 +32,7 @@ MyModel(EsIndexable, models.Model):
 
 Then you can do:
 ```python
->>> q = MyModel.es_search('foo')
+>>> q = MyModel.es.search('foo')
 
 ```
 which returns an instance of a EsQueryset, it's like a django Queryset but it instanciates models from Elasticsearch sources (and thus db operations are disactivated).
@@ -49,11 +49,11 @@ The url of your elasticsearch cluster/instance.
 * ELASTICSEARCH_AUTO_INDEX  
 defaults to True  
 Set to false if you want to handle the elasticsearch operations yourself. By default the creation of the index, the indexation and deletions are hooked respectively to the post_syncdb, post_save and post_delete signals.  
-If you have already done a syncdb, you can just call ```MyModel.es_create_index()``` to create the index/mapping.
+If you have already done a syncdb, you can just call ```MyModel.es.create_index()``` to create the index/mapping.
 
 * ELASTICSEARCH_SETTINGS  
 no defaults  
-If set, will be passed when creating any index [as is](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-create-index.html#create-index-settings). If you need different settings for different indexes/document types, you can override the ```es_create_index()``` method of your EsIndexable model.
+If set, will be passed when creating any index [as is](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-create-index.html#create-index-settings).
 
 Model scope configuration:
 --------------------------
@@ -105,27 +105,27 @@ EsIndexable API:
 ----------------
 
 * OPERATIONS
-- es_do_index
-- es_delete
-- es_do_update  
+- es.do_index
+- es.delete
+- es.do_update  
 Call this if you want the documents to be available right away after (re)indexation (in a TestCase probably).
-- es_create_index
-- es_flush
-- es_reindex_all
+- es.create_index
+- es.flush
+- es.reindex_all
 
 * GETTERS/CONVENIENCE METHODS
-- es_get_doc_type (classmethod)  
+- es.get_doc_type (classmethod)  
 defaults to ```'model-{0}'.format(cls.__name__)```  
 Returns a string used as document name in the index.
-- es_get  
+- es.get  
 Returns an python object of the document.
-- es_get_mapping
-- es_make_mapping
-- es_get_settings
-- es_search(cls, query, facets=None, facets_limit=5, global_facets=True)  
+- es.get_mapping
+- es.make_mapping
+- es.get_settings
+- es.search(cls, query, facets=None, facets_limit=5, global_facets=True)  
 Returns an EsQueryset
-- es_diff
-- es_mlt
+- es.diff
+- es.mlt
 
 
 EsQueryset API:
@@ -136,7 +136,7 @@ To access the facets you can use the facets property of the EsQueryset:
 ```python
 >>> MyModel.Elasticsearch.default_facets_fields
 ['author']
->>> q = MyModel.es_search('foo')  # returns a lazy EsQueryset instance
+>>> q = MyModel.es.search('foo')  # returns a lazy EsQueryset instance
 >>> q.facets  # evals the query and returns the facets
 {u'author': {
    u'_type': u'terms',
@@ -147,7 +147,7 @@ To access the facets you can use the facets property of the EsQueryset:
    }
 }
 ```
-Note that es_search automatically add the default facets set on the model to the query, but you can also set them manually with the ```facets``` and ```facets_limit``` parameters.
+Note that es.search automatically add the default facets set on the model to the query, but you can also set them manually with the ```facets``` and ```facets_limit``` parameters.
 
 
 CONTRIB
@@ -172,9 +172,3 @@ From your project do:
 ```
 python manage.py test django_elasticsearch
 ```
-
-NOTES
------
-
-* it would be kinda logical to put the es_search method in a custom manager, because it returns a EsQueryset, but the manager would need to access the Elasticsearch subclass which would be a problem.
-* having all methods beeing sufixed by es_ is a bit redundant, we could encapsulate everything in a MyModel.es attribute ?

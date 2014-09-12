@@ -18,7 +18,7 @@ class ElasticsearchFilterBackend(BaseFilterBackend):
             ordering = getattr(view, 'ordering', getattr(model.Meta, 'ordering', None))
             filterable = getattr(view, 'filter_fields', [])
             filters = dict([(k, v) for k, v in request.GET.iteritems() if k in filterable])
-            q = model.es_search(query).filter(**filters)
+            q = model.es.search(query).filter(**filters)
             if ordering:
                 q.order_by(*ordering)
 
