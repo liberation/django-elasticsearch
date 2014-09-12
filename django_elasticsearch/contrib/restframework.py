@@ -37,6 +37,6 @@ class FacetedListModelMixin(ListModelMixin):
         r = super(FacetedListModelMixin, self).list(request, *args, **kwargs)
         # Injecting the facets in the response if the FilterBackend was used.
 
-        if getattr(self.queryset, 'facets', None):
-            r.data['facets'] = self.queryset.facets
+        if getattr(self.object_list, 'facets', None):
+            r.data['facets'] = self.object_list.facets
         return r

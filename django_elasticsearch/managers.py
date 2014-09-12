@@ -75,7 +75,10 @@ class EsQueryset(object):
             self._stop = ndx + 1
 
         self.do_search()
-        return self._results
+        if type(ndx) is slice:
+            return self._results
+        elif type(ndx) is int:
+            return self._results[0]
 
     def __nonzero__(self):
         self.count()
@@ -167,12 +170,16 @@ class EsQueryset(object):
         return self
 
     def order_by(self, *fields):
+        if self.is_evaluated:
+            # empty the result cache
+            self._results = []
         self._ordering = [{f: "asc"} if f[0] != '-' else {f[1:]: "desc"} for f in fields] + ["_score"]
+        return self
 
     def filter(self, **kwargs):
-        if self._results:
-            # Note: should we just re-request ?
-            raise ValueError("You can't filter an already evaluated Elasticsearch Queryset.")
+        if self.is_evaluated:
+            # empty the result cache
+            self._results = []
         self._filters.append(kwargs)
         return self
 
