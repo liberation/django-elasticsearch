@@ -177,6 +177,9 @@ python manage.py test django_elasticsearch
 TODO
 ====
 
+* fix ```es.mlt```
+* implement ```es.diff```
+* up the test coverage (84%)
 * docstrings
 * make EsQueryset API closer to django Queryset
 * moar Pep8 ;)
