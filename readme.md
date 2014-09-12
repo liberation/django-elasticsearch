@@ -42,16 +42,16 @@ CONFIGURATION
 Project scope configuration (django settings):
 ----------------------------------------------
 
-* ELASTICSEARCH_URL  
+* **ELASTICSEARCH_URL**  
 defaults to 'http://localhost:9200'  
 The url of your elasticsearch cluster/instance.
 
-* ELASTICSEARCH_AUTO_INDEX  
+* **ELASTICSEARCH_AUTO_INDEX**  
 defaults to True  
 Set to false if you want to handle the elasticsearch operations yourself. By default the creation of the index, the indexation and deletions are hooked respectively to the post_syncdb, post_save and post_delete signals.  
 If you have already done a syncdb, you can just call ```MyModel.es.create_index()``` to create the index/mapping.
 
-* ELASTICSEARCH_SETTINGS  
+* **ELASTICSEARCH_SETTINGS**  
 no defaults  
 If set, will be passed when creating any index [as is](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-create-index.html#create-index-settings).
 
@@ -60,15 +60,15 @@ Model scope configuration:
 
 Each EsIndexable model receive an Elasticsearch class that contains its options (just like the Model.Meta class).
 
-* index  
+* **index**  
 defaults to 'django'  
 The elasticsearch index in which this model(document type) will be indexed.
 
-* fields  
+* **fields**  
 defaults to None  
 The fields to be indexed by elasticsearch, if let to None, all models fields will be indexed.
 
-* mapping  
+* **mapping**  
 defaults to None  
 You can override some or all of the fields mapping with this dictionnary
 Example:
@@ -83,15 +83,15 @@ MyModel(EsIndexable, models.Model):
 ```
 In this example we only override the 'boost' attribute of the 'title' field, but there are plenty of possible configurations, see [the docs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-put-mapping.html).
 
-* serializer_class  
+* **serializer_class**  
 defaults to ModelJsonSerializer  
 This is the class used to translate from the django model to elasticsearch document both ways.
 
-* default_facets_fields  
+* **default_facets_fields**  
 defaults to None  
 Can be set to a list of fields to return as facets.
 
-* facets_limits  
+* **facets_limits**  
 defaults to 10  
 The maximum number of facets to return per query.
 
@@ -99,12 +99,13 @@ The maximum number of facets to return per query.
 API
 ===
 
-You can override these methods in your model if you want to change the behavior of the class.
-
 EsIndexable API:
 ----------------
 
-* OPERATIONS
+**OPERATIONS**
+- es.serialize
+  
+- es.deserialize
 - es.do_index
 - es.delete
 - es.do_update  
@@ -113,7 +114,7 @@ Call this if you want the documents to be available right away after (re)indexat
 - es.flush
 - es.reindex_all
 
-* GETTERS/CONVENIENCE METHODS
+**GETTERS/CONVENIENCE METHODS**
 - es.get_doc_type (classmethod)  
 defaults to ```'model-{0}'.format(cls.__name__)```  
 Returns a string used as document name in the index.
@@ -130,7 +131,7 @@ Returns an EsQueryset
 
 EsQueryset API:
 ---------------
-This class is as close as possible to a standard relational db Queryset, however the db operations (update and delete) are disactivated (i'm open for discution of how to implement these). Note that just like regular Querysets, EsQuerysets are lazy, they can be ordered, filtered and faceted.
+This class is as close as possible to a standard relational db Queryset, however the db operations (update and delete) are disactivated (i'm open for discution on if and how to implement these). Note that just like regular Querysets, EsQuerysets are lazy, they can be ordered, filtered and faceted.
 
 To access the facets you can use the facets property of the EsQueryset:
 ```python
@@ -164,7 +165,7 @@ Not really working in all cases :(
 
 
 TESTS
------
+=====
 
 There is no test project in this repository, add ```django_elasticsearch``` to django settings INSTALLED_APPS.
 
@@ -172,3 +173,10 @@ From your project do:
 ```
 python manage.py test django_elasticsearch
 ```
+
+TODO
+====
+
+* docstrings
+* make EsQueryset API closer to django Queryset
+* moar Pep8 ;)
