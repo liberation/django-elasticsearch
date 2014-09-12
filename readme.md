@@ -19,7 +19,7 @@ Note: no pypy package yet
 USAGE
 =====
 
-Subclass the models you wish to index/search with ```Indexable```.
+Subclass the models you wish to index/search with ```django_elasticsearch.models.EsIndexable```.
 ```python
 from django.db import models
 from django_elasticsearch.models import EsIndexable
