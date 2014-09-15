@@ -12,12 +12,19 @@ class ElasticsearchFilterBackend(BaseFilterBackend):
 
         if view.action == 'list':
             if not issubclass(model, EsIndexable):
-                raise ValueError("Model %s is not indexed in Elasticsearch. Make it indexable by subclassing django_elasticsearch.models.EsIndexable." % model)
+                raise ValueError("Model {0} is not indexed in Elasticsearch. "
+                                 "Make it indexable by subclassing "
+                                 "django_elasticsearch.models.EsIndexable."
+                                 "".format(model))
 
             query = request.QUERY_PARAMS.get(self.search_param, '')
-            ordering = getattr(view, 'ordering', getattr(model.Meta, 'ordering', None))
+            ordering = getattr(view,
+                               'ordering',
+                               getattr(model.Meta, 'ordering', None))
             filterable = getattr(view, 'filter_fields', [])
-            filters = dict([(k, v) for k, v in request.GET.iteritems() if k in filterable])
+            filters = dict([(k, v)
+                            for k, v in request.GET.iteritems()
+                            if k in filterable])
             q = model.es.search(query).filter(**filters)
             if ordering:
                 q.order_by(*ordering)
@@ -29,9 +36,10 @@ class ElasticsearchFilterBackend(BaseFilterBackend):
 
 class FacetedListModelMixin(ListModelMixin):
     """
-    Add faceted info to the response in case the ElasticsearchFilterBackend was used.
+    Add faceted info to the response in case the ElasticsearchFilterBackend
+    was used.
     """
-    filter_backends = [ElasticsearchFilterBackend,]
+    filter_backends = [ElasticsearchFilterBackend]
 
     def list(self, request, *args, **kwargs):
         r = super(FacetedListModelMixin, self).list(request, *args, **kwargs)

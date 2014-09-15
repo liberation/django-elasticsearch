@@ -97,7 +97,7 @@ class EsIndexableTestCase(TestCase):
     })
     def test_custom_mapping(self):
         TestModel.Elasticsearch.fields = ['username',]
-        TestModel.Elasticsearch.mapping = {"username": {"boost": 20}}
+        TestModel.Elasticsearch.mappings = {"username": {"boost": 20}}
         # should take the defaults into accounts
         expected = {
             'model-TestModel': {

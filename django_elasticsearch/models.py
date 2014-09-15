@@ -33,7 +33,9 @@ class EsIndexable(Model):
 
     def _raise_no_db_operation(self):
         if getattr(self, '_is_es_deserialized', False):
-            raise ValueError("The instance {0} of {1} have been deserialized from an elasticsearch source and thus it's not safe to save it.".format(self, self.__class__))
+            raise ValueError("""The instance {0} of {1} have been deserialized
+            from an elasticsearch source and thus
+            it's not safe to save it.""".format(self, self.__class__))
 
     def save(self, *args, **kwargs):
         self._raise_no_db_operation()

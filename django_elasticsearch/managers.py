@@ -1,18 +1,22 @@
 # -*- coding: utf-8 -*-
 from django.conf import settings
+from django.db.models import FieldDoesNotExist
 from django.db.models.query import REPR_OUTPUT_SIZE
 
 from elasticsearch import Elasticsearch
 
 
-ELASTICSEARCH_URL = getattr(settings, 'ELASTICSEARCH_URL', 'http://localhost:9200')
+ELASTICSEARCH_URL = getattr(settings,
+                            'ELASTICSEARCH_URL',
+                            'http://localhost:9200')
 
 # TODO: would it be better to give this client a dedicated thread ?!
 # and not instanciate it each request ?
 es = Elasticsearch(ELASTICSEARCH_URL)
 
 
-# Note: we use long/double because different db backends could store different sizes of numerics ?
+# Note: we use long/double because different db backends
+# could store different sizes of numerics ?
 # Note: everything else is mapped to a string
 ELASTICSEARCH_FIELD_MAP = {
     u'AutoField': 'long',
@@ -133,7 +137,10 @@ class EsQueryset(object):
 
         if self.facets_fields:
             body['facets'] = dict([
-                (field, {'terms' : {'field' : field, 'size': self.facets_limit}, 'global': self.global_facets})
+                (field, {'terms':
+                         {'field': field,
+                          'size': self.facets_limit},
+                         'global': self.global_facets})
                 for field in self.facets_fields
             ])
 
@@ -154,7 +161,8 @@ class EsQueryset(object):
 
         if self.facets_fields:
             self._facets = r['facets']
-        self._results = [self.model.es.deserialize(source=e['_source']) for e in r['hits']['hits']]
+        self._results = [self.model.es.deserialize(source=e['_source'])
+                         for e in r['hits']['hits']]
         self._max_score = r['hits']['max_score']
         self._total = r['hits']['total']
         return self._results
@@ -173,7 +181,8 @@ class EsQueryset(object):
         if self.is_evaluated:
             # empty the result cache
             self._results = []
-        self._ordering = [{f: "asc"} if f[0] != '-' else {f[1:]: "desc"} for f in fields] + ["_score"]
+        self._ordering = [{f: "asc"} if f[0] != '-' else {f[1:]: "desc"}
+                          for f in fields] + ["_score"]
         return self
 
     def filter(self, **kwargs):
@@ -191,11 +200,12 @@ class EsQueryset(object):
         return self
 
     def update(self):
-        # Note: do we want to be able to change elasticsearch documents directly ?
-        raise NotImplementedError("Db operational methods have been disabled for Elasticsearch Querysets.")
+        raise NotImplementedError("Db operational methods have been "
+                                  "disabled for Elasticsearch Querysets.")
 
     def delete(self):
-        raise NotImplementedError("Db operational methods have been disabled for Elasticsearch Querysets.")
+        raise NotImplementedError("Db operational methods have been "
+                                  "disabled for Elasticsearch Querysets.")
 
     @property
     def facets(self):
@@ -215,6 +225,9 @@ def needs_instance(f):
 
 
 class ElasticsearchManager():
+    """
+    Note: This is not strictly a django model Manager.
+    """
 
     def __init__(self, k):
         # avoid a circular import, meh :(
@@ -239,15 +252,20 @@ class ElasticsearchManager():
         Returns a json object suitable for elasticsearch indexation.
         """
         # Note: by default, will use all the model's fields.
-        return self.model.Elasticsearch.serializer_class(self.model).serialize(self.instance)
+        return (self.model.Elasticsearch.serializer_class(self.model)
+                .serialize(self.instance))
 
     def deserialize(self, source):
         """
         Create an instance of the Model from the elasticsearch source
-        Note: IMPORTANT: there is no certainty that the elasticsearch instance actually is synchronised with the db one. That is why the save() method is desactivated.
+        Note: IMPORTANT: there is no certainty that the elasticsearch instance
+        actually is synchronised with the db one.
+        That is why the save() method is desactivated.
         """
-        instance = self.model(**self.model.Elasticsearch.serializer_class(self.model).deserialize(source))
-        instance._is_es_deserialized = True  # make sure it won't be saved in db.
+        instance = self.model(**self.model.Elasticsearch
+                              .serializer_class(self.model)
+                              .deserialize(source))
+        instance._is_es_deserialized = True
         return instance
 
     @needs_instance
@@ -282,7 +300,8 @@ class ElasticsearchManager():
         """
         Returns a EsQueryset instance that acts a bit like a django Queryset
         facets is dictionnary containing facets informations
-        If global_facets is True, the es.facets_limit most used facets accross all documents will be returned.
+        If global_facets is True,
+        the most used facets accross all documents will be returned.
         if set to False, the facets will be filtered by the search query
         """
         if facets is None and self.model.Elasticsearch.default_facets_fields:
@@ -307,21 +326,27 @@ class ElasticsearchManager():
         """
         mappings = {}
 
-        fields = self.model.Elasticsearch.fields or [f.name for f in self.model._meta.fields]
+        model_fields = [f.name for f in self.model._meta.fields]
+        fields = self.model.Elasticsearch.fields or model_fields
         for field_name in fields:
-            field = self.model._meta.get_field(field_name)
-            mapping = {'type': ELASTICSEARCH_FIELD_MAP.get(
-                field.get_internal_type(), 'string')
-            }
+            try:
+                field = self.model._meta.get_field(field_name)
+            except FieldDoesNotExist:
+                # abstract field
+                mapping = {}
+            else:
+                mapping = {'type': ELASTICSEARCH_FIELD_MAP.get(
+                    field.get_internal_type(), 'string')}
             try:
                 # if an analyzer is set as default, use it.
                 # TODO: could be also tokenizer, filter, char_filter
                 if mapping['type'] == 'string':
-                    mapping['analyzer'] = settings.ELASTICSEARCH_SETTINGS['analysis']['default']
+                    analyzer = settings.ELASTICSEARCH_SETTINGS['analysis']['default']
+                    mapping['analyzer'] = analyzer
             except (ValueError, AttributeError, KeyError, TypeError):
                 pass
             try:
-                mapping.update(self.model.Elasticsearch.mapping[field_name])
+                mapping.update(self.model.Elasticsearch.mappings[field_name])
             except (AttributeError, KeyError, TypeError):
                 pass
             mappings[field_name] = mapping
