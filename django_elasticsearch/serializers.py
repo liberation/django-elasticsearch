@@ -62,21 +62,34 @@ class ModelJsonSerializer(object):
     def serialize(self, instance):
         model_fields = [f.name for f in instance._meta.fields]
         fields = instance.Elasticsearch.fields or model_fields
-        return json.dumps(
-            dict([(field, self.get_es_val(instance, field))
-                  for field in fields]),
-            default=lambda d: (
-                d.isoformat() if isinstance(d, datetime.datetime)
-                or isinstance(d, datetime.date) else None)
-        )
+
+        obj = dict([(field, self.get_es_val(instance, field))
+                    for field in fields])
+
+        # adding auto complete fields
+        completion_fields = instance.Elasticsearch.completion_fields
+        for field_name in completion_fields or []:
+            suggest_name = "{0}_complete".format(field_name)
+            obj[suggest_name] = {"input": obj[field_name]}
+
+        return json.dumps(obj,
+                          default=lambda d: (
+                              d.isoformat() if isinstance(d, datetime.datetime)
+                              or isinstance(d, datetime.date) else None))
 
     def deserialize(self, source):
         """
         Returns a dict that is suitable to pass to a Model class as kwargs,
         to instanciate it.
         """
-        # obj = json.loads(payload)
-        return dict([(k, self.get_db_val(source, k))
-                     for k, v in source.iteritems()
-                     if not isinstance(self.model._meta.get_field(k),
-                                       ManyToManyField)])
+        d = {}
+        for k, v in source.iteritems():
+            try:
+                field = self.model._meta.get_field(k)
+            except FieldDoesNotExist:
+                # abstract field
+                continue
+
+            if not isinstance(field, ManyToManyField):
+                d[k] = self.get_db_val(source, k)
+        return d

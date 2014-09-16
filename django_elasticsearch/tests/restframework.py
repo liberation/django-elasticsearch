@@ -75,7 +75,7 @@ class EsRestFrameworkTestCase(TestCase):
         self.assertTrue(r.data['results'][0]['id'], self.model2.id)
 
     def test_facets(self):
-        TestModel.Elasticsearch.default_facets_fields = ['first_name',]
+        TestModel.Elasticsearch.facets_fields = ['first_name',]
         filter_backend = ElasticsearchFilterBackend()
         s = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view)
         expected = {
@@ -88,10 +88,13 @@ class EsRestFrameworkTestCase(TestCase):
             }
         }
         self.assertEqual(s.facets, expected)
-        TestModel.Elasticsearch.default_facets_fields = None
+        TestModel.Elasticsearch.facets_fields = None
 
     def test_faceted_viewset(self):
-        TestModel.Elasticsearch.default_facets_fields = ['first_name',]
+        TestModel.Elasticsearch.facets_fields = ['first_name',]
         r = self.client.get('/tests/', {'q': 'test'})
         self.assertTrue('facets' in r.data)
-        TestModel.Elasticsearch.default_facets_fields = None
+        TestModel.Elasticsearch.facets_fields = None
+
+    def test_suggestions_viewset(self):
+        pass

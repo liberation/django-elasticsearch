@@ -87,14 +87,25 @@ In this example we only override the 'boost' attribute of the 'title' field, but
 defaults to ModelJsonSerializer  
 This is the class used to translate from the django model to elasticsearch document both ways.
 
-* **default_facets_fields**  
+* **facets_fields**  
 defaults to None  
-Can be set to a list of fields to return as facets.
+Can be set to a list of fields to return as facets when doing a query, if not set explicitly.
 
 * **facets_limits**  
-defaults to 10  
-The maximum number of facets to return per query.
+defaults to None  
+The maximum number of facets to return per query, if None, use the elasticsearch setting.
 
+* **suggest_fields**
+defaults to None  
+A dictionary of fields to add in the suggestions, if not set at a search level.
+
+* **suggest_limit**
+defaults to None  
+The maximum number of suggestions to return, if None, use the elasticsearch setting.
+
+* **completion_fields**
+defaults to None
+The fields on which to activate auto-completion (needs a specific mapping).
 
 API
 ===
@@ -104,7 +115,6 @@ EsIndexable API:
 
 **OPERATIONS**
 - es.serialize
-  
 - es.deserialize
 - es.do_index
 - es.delete
@@ -123,8 +133,12 @@ Returns an python object of the document.
 - es.get_mapping
 - es.make_mapping
 - es.get_settings
-- es.search(cls, query, facets=None, facets_limit=5, global_facets=True)  
-Returns an EsQueryset
+- es.search(cls, query,  
+            facets=None, facets_limit=None, global_facets=True  
+            suggest_fields=None, suggest_limit=None)  
+  Returns an EsQueryset
+- es.complete(field_name, query)
+  Returns a list of suggestions for auto-completion
 - es.diff
 - es.mlt
 

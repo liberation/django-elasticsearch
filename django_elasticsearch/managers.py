@@ -41,12 +41,15 @@ class EsQueryset(object):
     def __init__(self, model):
         self.model = model
         self.facets_fields = None
+        self.suggest_fields = None
         self._ordering = None  # default to 'score'
         self._ndx = None
         self._start = 0
         self._stop = None
         self._query = None
         self._filters = []
+        self._suggestions = None
+        self._facets = None
         self._results = []  # store
         self._total = None
 
@@ -112,7 +115,7 @@ class EsQueryset(object):
 
     def __len__(self):
         r = es.count(
-            index=self.model.Elasticsearch.index,
+            index=self.model.es.get_index(),
             doc_type=self.model.es.get_doc_type(),
             body=self._make_search_body())
         self._total = r['count']
@@ -126,7 +129,7 @@ class EsQueryset(object):
     def is_evaluated(self):
         return bool(self._results)
 
-    def do_search(self):
+    def do_search(self, extra_body=None):
         # TODO: regexp:
         # attr:value
         # "match a phrase"
@@ -138,17 +141,27 @@ class EsQueryset(object):
         if self.facets_fields:
             body['facets'] = dict([
                 (field, {'terms':
-                         {'field': field,
-                          'size': self.facets_limit},
+                         {'field': field},
                          'global': self.global_facets})
                 for field in self.facets_fields
             ])
+            if self.facets_limit:
+                body['facets'][field]['terms']['size'] = self.facets_limit
+
+        if self.suggest_fields:
+            suggest = {}
+            for field_name in self.suggest_fields:
+                suggest[field_name] = {"text": self._query,
+                                       "term": {"field": field_name}}
+                if self.suggest_limit:
+                    suggest[field_name]["text"]["term"]["size"] = self.suggest_limit
+            body['suggest'] = suggest
 
         if self._ordering:
             body['sort'] = self._ordering
 
         search_params = {
-            'index': self.model.Elasticsearch.index,
+            'index': self.model.es.get_index(),
             'doc_type': self.model.es.get_doc_type()
         }
         if self._start:
@@ -157,20 +170,31 @@ class EsQueryset(object):
             search_params['size'] = self._stop - self._start
         search_params['body'] = body
 
+        print search_params
+
         r = es.search(**search_params)
 
         if self.facets_fields:
             self._facets = r['facets']
+
+        if self.suggest_fields:
+            self._suggestions = r['suggest']
+
         self._results = [self.model.es.deserialize(source=e['_source'])
                          for e in r['hits']['hits']]
         self._max_score = r['hits']['max_score']
         self._total = r['hits']['total']
         return self._results
 
-    def add_facets(self, fields=None, limit=10, use_globals=True):
+    def facet(self, fields, limit=None, use_globals=True):
         self.facets_fields = fields
         self.facets_limit = limit
         self.global_facets = use_globals
+        return self
+
+    def suggest(self, fields, limit=None):
+        self.suggest_fields = fields
+        self.suggest_limit = limit
         return self
 
     def query(self, query):
@@ -212,6 +236,11 @@ class EsQueryset(object):
         self.do_search()
         return self._facets
 
+    @property
+    def suggestions(self):
+        self.do_search()
+        return self._suggestions
+
     def count(self):
         return self.__len__()
 
@@ -242,6 +271,9 @@ class ElasticsearchManager():
         else:
             raise TypeError
 
+    def get_index(self):
+        return self.model.Elasticsearch.index
+
     def get_doc_type(self):
         # TODO: make it a property
         return 'model-{0}'.format(self.model.__name__)
@@ -271,20 +303,20 @@ class ElasticsearchManager():
     @needs_instance
     def do_index(self):
         json = self.serialize()
-        es.index(index=self.model.Elasticsearch.index,
+        es.index(index=self.get_index(),
                  doc_type=self.get_doc_type(),
                  id=self.instance.id,
                  body=json)
 
     @needs_instance
     def delete(self):
-        es.delete(index=self.model.Elasticsearch.index,
+        es.delete(index=self.get_index(),
                   doc_type=self.get_doc_type(),
                   id=self.instance.id, ignore=404)
 
     @needs_instance
     def get(self, **kwargs):
-        return es.get(index=self.model.Elasticsearch.index,
+        return es.get(index=self.get_index(),
                       id=self.instance.id, **kwargs)
 
     @needs_instance
@@ -292,11 +324,13 @@ class ElasticsearchManager():
         """
         Returns documents that are 'like' this instance
         """
-        return es.mlt(index=self.model.Elasticsearch.index,
+        return es.mlt(index=self.get_index(),
                       doc_type=self.get_doc_type(),
                       id=self.instance.id, mlt_fields=fields)
 
-    def search(self, query, facets=None, facets_limit=5, global_facets=True):
+    def search(self, query,
+               facets=None, facets_limit=None, global_facets=True,
+               suggest_fields=None, suggest_limit=None):
         """
         Returns a EsQueryset instance that acts a bit like a django Queryset
         facets is dictionnary containing facets informations
@@ -304,21 +338,48 @@ class ElasticsearchManager():
         the most used facets accross all documents will be returned.
         if set to False, the facets will be filtered by the search query
         """
-        if facets is None and self.model.Elasticsearch.default_facets_fields:
-            facets = self.model.Elasticsearch.default_facets_fields
-
         q = EsQueryset(self.model).query(query)
 
+        if facets is None and self.model.Elasticsearch.facets_fields:
+            facets = self.model.Elasticsearch.facets_fields
         if facets:
-            q.add_facets(facets, limit=facets_limit, use_globals=global_facets)
+            q.facet(facets,
+                    limit=facets_limit or self.model.Elasticsearch.facets_limit,
+                    use_globals=global_facets)
+
+        if suggest_fields is None and self.model.Elasticsearch.suggest_fields:
+            suggest_fields = self.model.Elasticsearch.suggest_fields
+        if suggest_fields:
+            q.suggest(fields=suggest_fields, limit=suggest_limit)
+
         return q
+
+    def complete(self, field_name, query):
+        """
+        Returns a list of close values for auto-completion
+        """
+        if field_name not in self.model.Elasticsearch.completion_fields:
+            raise ValueError("{0} is not in the completion_fields list, "
+                             "it is required to have a specific mapping."
+                             .format(field_name))
+
+        complete_name = "{0}_complete".format(field_name)
+        resp = es.suggest(index=self.get_index(),
+                          body={complete_name: {
+                              "text": query,
+                              "completion": {
+                                  "field": complete_name,
+                                  "fuzzy" : {}  # stick to fuzziness settings
+                              }}})
+
+        return [r['text'] for r in resp[complete_name][0]['options']]
 
     def do_update(self):
         """
         Hit this if you are in a hurry,
         the recently indexed items will be available right away.
         """
-        es.indices.refresh(index=self.model.Elasticsearch.index)
+        es.indices.refresh(index=self.get_index())
 
     def make_mapping(self):
         """
@@ -351,6 +412,12 @@ class ElasticsearchManager():
                 pass
             mappings[field_name] = mapping
 
+        # add a suggest mapping for every suggestable field
+        fields = self.model.Elasticsearch.completion_fields or []
+        for field_name in fields:
+            complete_name = "{0}_complete".format(field_name)
+            mappings[complete_name] = {"type": "completion"}
+
         return {
             self.get_doc_type(): {
                 "properties": mappings
@@ -361,14 +428,14 @@ class ElasticsearchManager():
         """
         Debug convenience method.
         """
-        return es.indices.get_mapping(index=self.model.Elasticsearch.index,
+        return es.indices.get_mapping(index=self.get_index(),
                                       doc_type=self.get_doc_type())
 
     def get_settings(self):
         """
         Debug convenience method.
         """
-        return es.indices.get_settings(index=self.model.Elasticsearch.index)
+        return es.indices.get_settings(index=self.get_index())
 
     @needs_instance
     def diff(self, source=None):
@@ -382,9 +449,9 @@ class ElasticsearchManager():
         if hasattr(settings, 'ELASTICSEARCH_SETTINGS'):
             body['settings'] = settings.ELASTICSEARCH_SETTINGS
 
-        es.indices.create(self.model.Elasticsearch.index,
+        es.indices.create(self.get_index(),
                           body=body, ignore=400)
-        es.indices.put_mapping(index=self.model.Elasticsearch.index,
+        es.indices.put_mapping(index=self.get_index(),
                                doc_type=self.get_doc_type(),
                                body=self.make_mapping())
 
@@ -394,7 +461,7 @@ class ElasticsearchManager():
             instance.es.do_index()
 
     def flush(self):
-        es.indices.delete_mapping(index=self.model.Elasticsearch.index,
+        es.indices.delete_mapping(index=self.get_index(),
                                   doc_type=self.get_doc_type(),
                                   ignore=400)
         self.create_index()

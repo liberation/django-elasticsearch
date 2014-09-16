@@ -84,6 +84,9 @@ class EsIndexableTestCase(TestCase):
         }
         self.assertEqual(s.facets, expected)
 
+    def test_facets_limit(self):
+        pass
+
     @override_settings(ELASTICSEARCH_SETTINGS={
         "analysis": {
             "default": "test_analyzer",
