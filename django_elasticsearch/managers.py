@@ -170,8 +170,6 @@ class EsQueryset(object):
             search_params['size'] = self._stop - self._start
         search_params['body'] = body
 
-        print search_params
-
         r = es.search(**search_params)
 
         if self.facets_fields:
