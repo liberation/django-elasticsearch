@@ -5,16 +5,6 @@ from django.db.models.query import REPR_OUTPUT_SIZE
 
 from elasticsearch import Elasticsearch
 
-
-ELASTICSEARCH_URL = getattr(settings,
-                            'ELASTICSEARCH_URL',
-                            'http://localhost:9200')
-
-# TODO: would it be better to give this client a dedicated thread ?!
-# and not instanciate it each request ?
-es = Elasticsearch(ELASTICSEARCH_URL)
-
-
 # Note: we use long/double because different db backends
 # could store different sizes of numerics ?
 # Note: everything else is mapped to a string
@@ -33,20 +23,25 @@ ELASTICSEARCH_FIELD_MAP = {
     u'SmallIntegerField': 'short'
 }
 
+es_client = Elasticsearch(getattr(settings,
+                                  'ELASTICSEARCH_URL',
+                                  'http://localhost:9200'))
+
 
 class EsQueryset(object):
     """
     Fake Queryset that is supposed to act somewhat like a django Queryset.
     """
-    def __init__(self, model):
+    def __init__(self, model, ignore_case=True):
         self.model = model
+        self.ignore_case = ignore_case  # depends on your mapping !
         self.facets_fields = None
         self.suggest_fields = None
         self._ordering = None  # default to 'score'
         self._ndx = None
         self._start = 0
         self._stop = None
-        self._query = None
+        self._query = ''
         self._filters = []
         self._suggestions = None
         self._facets = None
@@ -65,8 +60,7 @@ class EsQueryset(object):
         return repr(data)
 
     def __getitem__(self, ndx):
-        if self._ndx != ndx:
-            # empty the result cache
+        if ndx != self._ndx:
             self._results = []
 
         if self.is_evaluated:
@@ -106,33 +100,32 @@ class EsQueryset(object):
             filters = []
             for f in self._filters:
                 for field, value in f.items():
+                    try:
+                        value = value.lower()
+                    except AttributeError:
+                        pass
                     filters.append({'term': {field: value}})
             search['filter'] = {'bool': {'must': filters}}
             body['query'] = {'filtered': search}
         else:
             body = search
+
         return body
 
     def __len__(self):
-        r = es.count(
+        # if we pass a body without a query, elasticsearch complains
+        r = es_client.count(
             index=self.model.es.get_index(),
             doc_type=self.model.es.get_doc_type(),
-            body=self._make_search_body())
+            body=self._make_search_body() or None)
         self._total = r['count']
         return self._total
-
-    # @property
-    # def qs(self):
-    #     return self
 
     @property
     def is_evaluated(self):
         return bool(self._results)
 
     def do_search(self, extra_body=None):
-        # TODO: regexp:
-        # attr:value
-        # "match a phrase"
         if self.is_evaluated:
             return self._results
 
@@ -170,19 +163,16 @@ class EsQueryset(object):
             search_params['size'] = self._stop - self._start
         search_params['body'] = body
 
-        r = es.search(**search_params)
+        r = es_client.search(**search_params)
 
-        if self.facets_fields:
-            self._facets = r['facets']
-
-        if self.suggest_fields:
-            self._suggestions = r['suggest']
+        self._facets = r.get('facets')
+        self._suggestions = r.get('suggest')
 
         self._results = [self.model.es.deserialize(source=e['_source'])
                          for e in r['hits']['hits']]
         self._max_score = r['hits']['max_score']
         self._total = r['hits']['total']
-        return self._results
+        return self
 
     def facet(self, fields, limit=None, use_globals=True):
         self.facets_fields = fields
@@ -196,6 +186,9 @@ class EsQueryset(object):
         return self
 
     def query(self, query):
+        if self.is_evaluated:
+            # empty the result cache
+            self._results = []
         self._query = query
         return self
 
@@ -301,30 +294,30 @@ class ElasticsearchManager():
     @needs_instance
     def do_index(self):
         json = self.serialize()
-        es.index(index=self.get_index(),
-                 doc_type=self.get_doc_type(),
-                 id=self.instance.id,
-                 body=json)
+        es_client.index(index=self.get_index(),
+                        doc_type=self.get_doc_type(),
+                        id=self.instance.id,
+                        body=json)
 
     @needs_instance
     def delete(self):
-        es.delete(index=self.get_index(),
-                  doc_type=self.get_doc_type(),
-                  id=self.instance.id, ignore=404)
+        es_client.delete(index=self.get_index(),
+                         doc_type=self.get_doc_type(),
+                         id=self.instance.id, ignore=404)
 
     @needs_instance
     def get(self, **kwargs):
-        return es.get(index=self.get_index(),
-                      id=self.instance.id, **kwargs)
+        return es_client.get(index=self.get_index(),
+                             id=self.instance.id, **kwargs)
 
     @needs_instance
     def mlt(self, fields=[]):
         """
         Returns documents that are 'like' this instance
         """
-        return es.mlt(index=self.get_index(),
-                      doc_type=self.get_doc_type(),
-                      id=self.instance.id, mlt_fields=fields)
+        return es_client.mlt(index=self.get_index(),
+                             doc_type=self.get_doc_type(),
+                             id=self.instance.id, mlt_fields=fields)
 
     def search(self, query,
                facets=None, facets_limit=None, global_facets=True,
@@ -356,19 +349,20 @@ class ElasticsearchManager():
         """
         Returns a list of close values for auto-completion
         """
-        if field_name not in self.model.Elasticsearch.completion_fields:
+        if field_name not in (self.model.Elasticsearch.completion_fields or []):
             raise ValueError("{0} is not in the completion_fields list, "
                              "it is required to have a specific mapping."
                              .format(field_name))
 
         complete_name = "{0}_complete".format(field_name)
-        resp = es.suggest(index=self.get_index(),
-                          body={complete_name: {
-                              "text": query,
-                              "completion": {
-                                  "field": complete_name,
-                                  "fuzzy" : {}  # stick to fuzziness settings
-                              }}})
+        resp = es_client.suggest(index=self.get_index(),
+                                 body={complete_name: {
+                                     "text": query,
+                                     "completion": {
+                                         "field": complete_name,
+                                         # stick to fuzziness settings
+                                         "fuzzy" : {}
+                                     }}})
 
         return [r['text'] for r in resp[complete_name][0]['options']]
 
@@ -377,7 +371,7 @@ class ElasticsearchManager():
         Hit this if you are in a hurry,
         the recently indexed items will be available right away.
         """
-        es.indices.refresh(index=self.get_index())
+        es_client.indices.refresh(index=self.get_index())
 
     def make_mapping(self):
         """
@@ -405,7 +399,7 @@ class ElasticsearchManager():
             except (ValueError, AttributeError, KeyError, TypeError):
                 pass
             try:
-                mapping.update(self.model.Elasticsearch.mappings[field_name])
+                mapping.update(self.model.Elasticsearch.mapping[field_name])
             except (AttributeError, KeyError, TypeError):
                 pass
             mappings[field_name] = mapping
@@ -426,14 +420,19 @@ class ElasticsearchManager():
         """
         Debug convenience method.
         """
-        return es.indices.get_mapping(index=self.get_index(),
-                                      doc_type=self.get_doc_type())
+        full_mapping = es_client.indices.get_mapping(index=self.get_index(),
+                                                     doc_type=self.get_doc_type())
+
+        # look what pep8 make me do
+        index = self.get_index()
+        doc_type = self.get_doc_type()
+        return full_mapping[index]['mappings'][doc_type]['properties']
 
     def get_settings(self):
         """
         Debug convenience method.
         """
-        return es.indices.get_settings(index=self.get_index())
+        return es_client.indices.get_settings(index=self.get_index())
 
     @needs_instance
     def diff(self, source=None):
@@ -442,16 +441,16 @@ class ElasticsearchManager():
         """
         raise NotImplementedError
 
-    def create_index(self):
+    def create_index(self, ignore=True):
         body = {}
         if hasattr(settings, 'ELASTICSEARCH_SETTINGS'):
             body['settings'] = settings.ELASTICSEARCH_SETTINGS
 
-        es.indices.create(self.get_index(),
-                          body=body, ignore=400)
-        es.indices.put_mapping(index=self.get_index(),
-                               doc_type=self.get_doc_type(),
-                               body=self.make_mapping())
+        es_client.indices.create(self.get_index(),
+                                 body=body, ignore=ignore and 400)
+        es_client.indices.put_mapping(index=self.get_index(),
+                                      doc_type=self.get_doc_type(),
+                                      body=self.make_mapping())
 
     def reindex_all(self, queryset=None):
         q = queryset or self.model.objects.all()
@@ -459,8 +458,7 @@ class ElasticsearchManager():
             instance.es.do_index()
 
     def flush(self):
-        es.indices.delete_mapping(index=self.get_index(),
-                                  doc_type=self.get_doc_type(),
-                                  ignore=400)
+        es_client.indices.delete_mapping(index=self.get_index(),
+                                         doc_type=self.get_doc_type())
         self.create_index()
         self.reindex_all()

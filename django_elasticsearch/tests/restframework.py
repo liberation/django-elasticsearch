@@ -1,27 +1,28 @@
 # -*- coding: utf-8 -*-
 from django.test import TestCase
-from django.conf import settings
 from django.db.models.query import QuerySet
+from django.contrib.auth.models import User
 from django.test.utils import override_settings
 
 from elasticsearch import Elasticsearch
 
+from django_elasticsearch.managers import es_client
+from django_elasticsearch.tests.utils import withattrs
 from django_elasticsearch.tests.models import TestModel
 from django_elasticsearch.contrib.restframework import ElasticsearchFilterBackend
-
-
-es = Elasticsearch(getattr(settings, 'ELASTICSEARCH_URL', 'http://localhost:9200'))
 
 
 class Fake():
     pass
 
 
-@override_settings(REST_FRAMEWORK=None)
+@override_settings(REST_FRAMEWORK={})
 class EsRestFrameworkTestCase(TestCase):
     urls = 'django_elasticsearch.tests.urls'
 
     def setUp(self):
+        TestModel.es.create_index()
+
         self.model1 = TestModel.objects.create(username='1', first_name='test')
         self.model1.es.do_index()
         self.model2 = TestModel.objects.create(username='2', last_name='test')
@@ -38,7 +39,8 @@ class EsRestFrameworkTestCase(TestCase):
         self.queryset = TestModel.objects.all()
 
     def tearDown(self):
-        es.indices.delete(index='django-test')
+        super(EsRestFrameworkTestCase, self).tearDown()
+        es_client.indices.delete(index=TestModel.es.get_index())
 
     def test_filter_backend(self):
         filter_backend = ElasticsearchFilterBackend()
@@ -48,10 +50,16 @@ class EsRestFrameworkTestCase(TestCase):
         self.assertTrue(self.model2 in queryset)
         self.assertFalse(self.model3 in queryset)
 
+    def test_filter_backend_on_normal_model(self):
+        filter_backend = ElasticsearchFilterBackend()
+        with self.assertRaises(ValueError):
+            filter_backend.filter_queryset(self.fake_request, User.objects.all(), self.fake_view)
+
     def test_filter_backend_ordering(self):
         filter_backend = ElasticsearchFilterBackend()
         self.fake_view.ordering = ('-username',)
         queryset = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view)
+
         self.assertTrue(queryset[0].id, self.model2.id)
         self.assertTrue(queryset[1].id, self.model1.id)
         del self.fake_view.ordering
@@ -97,4 +105,24 @@ class EsRestFrameworkTestCase(TestCase):
         TestModel.Elasticsearch.facets_fields = None
 
     def test_suggestions_viewset(self):
-        pass
+        TestModel.Elasticsearch.suggest_fields = ['first_name']
+        r = self.client.get('/tests/', {'q': 'tset'})
+        self.assertTrue('suggestions' in r.data)
+        self.assertEqual(r.data['suggestions']['first_name'][0]['options'][0]['text'], "test")
+        TestModel.Elasticsearch.suggest_fields = None
+
+    def test_completion_viewset(self):
+        TestModel.Elasticsearch.completion_fields = ['username']
+        # need to re-index :(
+        TestModel.es.flush()
+        TestModel.es.do_update()
+
+        r = self.client.get('/tests/autocomplete/', {'f': 'username',
+                                                     'q': 'what'})
+        self.assertTrue('whatever' in r.data)
+
+        r = self.client.get('/tests/autocomplete/', {'f': 'first_name',
+                                                     'q': 'woo'})
+        # first_name is NOT in the completion_fields -> 404
+        self.assertEqual(r.status_code, 404)
+        TestModel.Elasticsearch.completion_fields = None

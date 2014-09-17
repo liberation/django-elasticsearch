@@ -145,7 +145,10 @@ Returns an python object of the document.
 
 EsQueryset API:
 ---------------
-This class is as close as possible to a standard relational db Queryset, however the db operations (update and delete) are disactivated (i'm open for discution on if and how to implement these). Note that just like regular Querysets, EsQuerysets are lazy, they can be ordered, filtered and faceted.
+This class is as close as possible to a standard relational db Queryset, however the db operations (update and delete) are disactivated (i'm open for discution on if and how to implement these). Note that just like regular Querysets, EsQuerysets are lazy, they can be ordered, filtered and faceted.  
+
+Note that the return value of the queryset is higly dependent on your mapping, for example, if you want to be able to do an exact filtering with filter() you need a field with {"index" : "not_analyzed"}.  
+Also by defaut, filters are case insensitive, if you have a case sensitive tokenizer, you need to instanciate EsQueryset with ignore_case=False.  
 
 To access the facets you can use the facets property of the EsQueryset:
 ```python

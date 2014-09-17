@@ -70,7 +70,9 @@ class ModelJsonSerializer(object):
         completion_fields = instance.Elasticsearch.completion_fields
         for field_name in completion_fields or []:
             suggest_name = "{0}_complete".format(field_name)
-            obj[suggest_name] = {"input": obj[field_name]}
+            # TODO: could store the value of field_name in case it does some
+            # heavy processing or db requests.
+            obj[suggest_name] = self.get_es_val(instance, field_name)
 
         return json.dumps(obj,
                           default=lambda d: (

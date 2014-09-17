@@ -1,6 +1,7 @@
 from unittest import TestSuite
 from unittest import TestLoader
 
+from django_elasticsearch.tests.qs import EsQuerysetTestCase
 from django_elasticsearch.tests.indexable import EsIndexableTestCase
 
 
@@ -8,7 +9,8 @@ def suite():
     suite = TestSuite()
     loader = TestLoader()
 
-    test_cases = [EsIndexableTestCase]
+    test_cases = [EsQuerysetTestCase,
+                  EsIndexableTestCase]
 
     try:
         from django_elasticsearch.tests.restframework import EsRestFrameworkTestCase

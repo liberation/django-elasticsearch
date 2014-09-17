@@ -1,32 +1,34 @@
 # -*- coding: utf-8 -*-
 from unittest import SkipTest
 
-from elasticsearch import Elasticsearch
-
 from django.test import TestCase
 from django.test.utils import override_settings
 
+from django_elasticsearch.managers import es_client
+from django_elasticsearch.tests.utils import withattrs
 from django_elasticsearch.tests.models import TestModel
 from django_elasticsearch.serializers import ModelJsonSerializer
 
-es = Elasticsearch()
+
+class CustomSerializer(ModelJsonSerializer):
+    def get_es_first_name_val(self, instance, field_name):
+        return u'pedro'
 
 
 @override_settings(ELASTICSEARCH_SETTINGS={})
 class EsIndexableTestCase(TestCase):
     def setUp(self):
-        # auto index is desabled for tests so we do it manually
-        TestModel.es.create_index()
+        # auto index is disabled for tests so we do it manually
+        TestModel.es.create_index(ignore=True)
         self.instance = TestModel.objects.create(username=u"1",
                                                  first_name=u"woot",
                                                  last_name=u"foo")
         self.instance.es.do_index()
-        self.instance.es.do_update()
+        TestModel.es.do_update()
 
     def tearDown(self):
-        self.instance.delete()
-        self.instance.es.delete()
-        es.indices.delete(index='django-test')
+        super(EsIndexableTestCase, self).tearDown()
+        es_client.indices.delete(index=TestModel.es.get_index())
 
     def test_serialize(self):
         json = self.instance.es.serialize()
@@ -84,9 +86,9 @@ class EsIndexableTestCase(TestCase):
         }
         self.assertEqual(s.facets, expected)
 
-    def test_facets_limit(self):
-        pass
-
+    @withattrs(TestModel.Elasticsearch, 'fields', ['username'])
+    @withattrs(TestModel.Elasticsearch, 'mapping', {"username": {"boost": 20}})
+    @withattrs(TestModel.Elasticsearch, 'completion_fields', ['username'])
     @override_settings(ELASTICSEARCH_SETTINGS={
         "analysis": {
             "default": "test_analyzer",
@@ -99,8 +101,6 @@ class EsIndexableTestCase(TestCase):
         }
     })
     def test_custom_mapping(self):
-        TestModel.Elasticsearch.fields = ['username',]
-        TestModel.Elasticsearch.mappings = {"username": {"boost": 20}}
         # should take the defaults into accounts
         expected = {
             'model-TestModel': {
@@ -109,34 +109,53 @@ class EsIndexableTestCase(TestCase):
                         'analyzer': 'test_analyzer',
                         'boost': 20,
                         'type': 'string'
+                    },
+                    'username_complete': {
+                        'type': 'completion'
                     }
                 }
             }
         }
         self.assertEqual(expected, TestModel.es.make_mapping())
-        TestModel.Elasticsearch.fields = None
-        TestModel.Elasticsearch.mapping = {}
 
+    @withattrs(TestModel.Elasticsearch, 'completion_fields', ['first_name'])
+    def test_auto_completion(self):
+        # Note: we need to call setUp again to create the mapping taking
+        # the new field(s) into account :(
+        TestModel.es.flush()
+        TestModel.es.do_update()
+        data = TestModel.es.complete('first_name', 'woo')
+        self.assertTrue('woot' in data)
+
+    @withattrs(TestModel.Elasticsearch, 'fields', ['username', 'date_joined'])
+    def test_get_mapping(self):
+        TestModel.es.flush()
+        TestModel.es.do_update()
+
+        expected = {
+            'username': {'type': 'string'},
+            'date_joined': {u'type': u'date', u'format': u'dateOptionalTime'}
+        }
+
+        mapping = TestModel.es.get_mapping()
+        self.assertEqual(expected, mapping)
+
+    def test_get_settings(self):
+        # Note i don't really know what's in there so i just check
+        # it doesn't crash and deserialize well.
+        settings = TestModel.es.get_settings()
+        self.assertEqual(dict, type(settings))
+
+    @withattrs(TestModel.Elasticsearch, 'fields', ['first_name', 'last_name'])
     def test_custom_fields(self):
-        # monkeypatch
-        TestModel.Elasticsearch.fields = ['first_name', 'last_name']
         json = self.instance.es.serialize()
         expected = '{"first_name": "woot", "last_name": "foo"}'
         self.assertEqual(json, expected)
-        # reset
-        TestModel.Elasticsearch.fields = None
 
+    @withattrs(TestModel.Elasticsearch, 'serializer_class', CustomSerializer)
     def test_custom_serializer(self):
-        class CustomSerializer(ModelJsonSerializer):
-            def get_es_first_name_val(self, instance, field_name):
-                return u'pedro'
-
-        # monkeypatch
-        self.instance.Elasticsearch.serializer_class = CustomSerializer
         json = self.instance.es.serialize()
         self.assertIn('"first_name": "pedro"', json)
-        # reset
-        self.instance.Elasticsearch.serializer_class = ModelJsonSerializer
 
     def test_reevaluate(self):
         # test that the request is resent if something changed filters, ordering, ndx

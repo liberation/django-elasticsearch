@@ -61,6 +61,10 @@ class SearchListModelMixin(ListModelMixin):
 
 
 class AutoCompletionMixin(ListModelMixin):
+    """
+    Add a route to the ViewSet to get a list of completion suggestion.
+    """
+
     @list_route()
     def autocomplete(self, request, **kwargs):
         field_name = request.QUERY_PARAMS.get('f', None)
