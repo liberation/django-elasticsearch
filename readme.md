@@ -1,5 +1,5 @@
-django_elasticsearch is a wrapper around a django Model that automate the indexation and search of django models.
-Note: if your elasticsearch documents/mappings are not close to django models, this package is probably not for you.
+django_elasticsearch is a wrapper around py-elasticsearch that automates the indexation and search of django models.  
+**Note**: if your elasticsearch documents/mappings are not close to django models, this package is probably not for you.
 
 INSTALL
 =======
@@ -33,6 +33,7 @@ MyModel(EsIndexable, models.Model):
 Then you can do:
 ```python
 >>> q = MyModel.es.search('foo')
+[<MyModel #1>, <MyModel #2>, ...]
 
 ```
 which returns an instance of a EsQueryset, it's like a django Queryset but it instanciates models from Elasticsearch sources (and thus db operations are disactivated).
@@ -184,9 +185,9 @@ Not really working in all cases :(
 TESTS
 =====
 
-There is no test project in this repository, add ```django_elasticsearch``` to django settings INSTALLED_APPS.
+There is no test project in this repository, add ```django_elasticsearch``` to django setting INSTALLED_APPS.
 
-From your project do:
+From your project call:
 ```
 python manage.py test django_elasticsearch
 ```
@@ -194,6 +195,10 @@ python manage.py test django_elasticsearch
 TODO
 ====
 
+* fix ```es.mlt```
+* implement ```es.diff```
+* implement ```es.raw```
+* up the test coverage (84%)
 * docstrings
 * make EsQueryset API closer to django Queryset
 * moar Pep8 ;)
