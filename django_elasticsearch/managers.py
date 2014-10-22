@@ -161,6 +161,7 @@ class EsQueryset(object):
             search_params['from_'] = self._start
         if self._stop:
             search_params['size'] = self._stop - self._start
+
         search_params['body'] = body
 
         r = es_client.search(**search_params)
@@ -268,6 +269,9 @@ class ElasticsearchManager():
     def get_doc_type(self):
         # TODO: make it a property
         return 'model-{0}'.format(self.model.__name__)
+
+    def check_cluster(self):
+        return es_client.ping()
 
     @needs_instance
     def serialize(self):

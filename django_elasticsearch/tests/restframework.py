@@ -45,7 +45,7 @@ class EsRestFrameworkTestCase(TestCase):
     def test_filter_backend(self):
         filter_backend = ElasticsearchFilterBackend()
         queryset = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view)
-        
+
         self.assertTrue(self.model1 in queryset)
         self.assertTrue(self.model2 in queryset)
         self.assertFalse(self.model3 in queryset)
@@ -126,3 +126,10 @@ class EsRestFrameworkTestCase(TestCase):
         # first_name is NOT in the completion_fields -> 404
         self.assertEqual(r.status_code, 404)
         TestModel.Elasticsearch.completion_fields = None
+
+    @override_settings(ELASTICSEARCH_URL='http://dummy')
+    def test_fallback_gracefully(self):
+        # should fallback to a regular django queryset / filtering
+        r = self.client.get('/tests/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['count'], 3)
