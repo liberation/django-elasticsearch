@@ -86,6 +86,16 @@ class EsIndexableTestCase(TestCase):
         }
         self.assertEqual(s.facets, expected)
 
+    def test_fuzziness(self):
+        hits = TestModel.es.search('woo')  # instead of woot
+        self.assertEqual(len(hits), 1)
+
+        hits = TestModel.es.search('woo', fuzziness=0)
+        self.assertEqual(len(hits), 0)
+
+        hits = TestModel.es.search('waat', fuzziness=2)
+        self.assertEqual(len(hits), 1)
+
     @withattrs(TestModel.Elasticsearch, 'fields', ['username'])
     @withattrs(TestModel.Elasticsearch, 'mapping', {"username": {"boost": 20}})
     @withattrs(TestModel.Elasticsearch, 'completion_fields', ['username'])

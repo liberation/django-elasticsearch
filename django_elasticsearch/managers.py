@@ -32,9 +32,8 @@ class EsQueryset(object):
     """
     Fake Queryset that is supposed to act somewhat like a django Queryset.
     """
-    def __init__(self, model, ignore_case=True):
+    def __init__(self, model, fuzziness=None):
         self.model = model
-        self.ignore_case = ignore_case  # depends on your mapping !
         self.facets_fields = None
         self.suggest_fields = None
         self._ordering = None  # default to 'score'
@@ -47,6 +46,7 @@ class EsQueryset(object):
         self._facets = None
         self._results = []  # store
         self._total = None
+        self.fuzziness = fuzziness
 
     def __iter__(self):
         self.do_search()
@@ -89,9 +89,19 @@ class EsQueryset(object):
         body = {}
         search = {}
 
+        if self.fuzziness is None:  # beware, could be 0
+            fuzziness = getattr(settings, 'ELASTICSEARCH_FUZZINESS', 0.5)
+        else:
+            fuzziness = self.fuzziness
+
         if self._query:
             search['query'] = {
-                'match': {'_all': self._query},
+                'match': {
+                    '_all': {
+                        'query': self._query,
+                        'fuzziness': fuzziness
+                    }
+                },
             }
 
         if self._filters:
@@ -325,7 +335,7 @@ class ElasticsearchManager():
 
     def search(self, query,
                facets=None, facets_limit=None, global_facets=True,
-               suggest_fields=None, suggest_limit=None):
+               suggest_fields=None, suggest_limit=None, fuzziness=None):
         """
         Returns a EsQueryset instance that acts a bit like a django Queryset
         facets is dictionnary containing facets informations
@@ -333,7 +343,7 @@ class ElasticsearchManager():
         the most used facets accross all documents will be returned.
         if set to False, the facets will be filtered by the search query
         """
-        q = EsQueryset(self.model).query(query)
+        q = EsQueryset(self.model, fuzziness=fuzziness).query(query)
 
         if facets is None and self.model.Elasticsearch.facets_fields:
             facets = self.model.Elasticsearch.facets_fields

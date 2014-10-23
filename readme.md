@@ -56,6 +56,10 @@ If you have already done a syncdb, you can just call ```MyModel.es.create_index(
 no defaults
 If set, will be passed when creating any index [as is](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-create-index.html#create-index-settings).
 
+* **ELASTICSEARCH_FUZZINESS**
+defaults to 0.5
+Will be applied to any es.search query, See the [fuzziness section](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/common-options.html#fuzziness) of the elasticsearch documentation.
+
 Model scope configuration:
 --------------------------
 
