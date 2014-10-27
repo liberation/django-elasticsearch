@@ -2,18 +2,19 @@ from django.http import Http404
 from django.conf import settings
 
 from rest_framework.response import Response
+from rest_framework.settings import api_settings
 from rest_framework.mixins import ListModelMixin
 from rest_framework.decorators import list_route
+from rest_framework.filters import OrderingFilter
 from rest_framework.filters import DjangoFilterBackend
+
 
 from elasticsearch import ConnectionError, TransportError
 from django_elasticsearch.models import EsIndexable
 from django_elasticsearch.managers import EsQueryset
 
 
-class ElasticsearchFilterBackend(DjangoFilterBackend):
-    search_param = getattr(settings, 'SEARCH_PARAM', 'q')
-
+class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
     def filter_queryset(self, request, queryset, view):
         model = queryset.model
 
@@ -24,10 +25,13 @@ class ElasticsearchFilterBackend(DjangoFilterBackend):
                                  "django_elasticsearch.models.EsIndexable."
                                  "".format(model))
 
-            query = request.QUERY_PARAMS.get(self.search_param, '')
-            ordering = getattr(view,
-                               'ordering',
-                               getattr(model.Meta, 'ordering', None))
+            query = request.QUERY_PARAMS.get(api_settings.SEARCH_PARAM, '')
+
+            # order of precedence : query params > class attribute > model Meta attribute
+            ordering = self.get_ordering(request)
+            if not ordering:
+                ordering = self.get_default_ordering(view)
+
             filterable = getattr(view, 'filter_fields', [])
             filters = dict([(k, v)
                             for k, v in request.GET.iteritems()
@@ -50,13 +54,16 @@ class SearchListModelMixin(ListModelMixin):
     in case the ElasticsearchFilterBackend was used.
     """
     filter_backends = [ElasticsearchFilterBackend]
-    fallback_filter_backends = [DjangoFilterBackend]
     FILTER_STATUS_MESSAGE_OK = 'Ok'
     FILTER_STATUS_MESSAGE_FAILED = 'Failed'
 
+    def __init__(self, *args, **kwargs):
+        self.es_failed = False
+        super(SearchListModelMixin, self).__init__(*args, **kwargs)
+
     def filter_queryset(self, queryset):
         if self.es_failed:
-            for backend in self.fallback_filter_backends:
+            for backend in api_settings.DEFAULT_FILTER_BACKENDS:
                 queryset = backend().filter_queryset(self.request, queryset, self)
             return queryset
         else:
@@ -64,14 +71,15 @@ class SearchListModelMixin(ListModelMixin):
 
     def list(self, request, *args, **kwargs):
         try:
-            self.es_failed = False
             r = super(SearchListModelMixin, self).list(request, *args, **kwargs)
-        except (ConnectionError, TransportError):
+        except (ConnectionError, TransportError), e:
             # something went wrong with elasticsearch
             # but the filterbackend didn't catch it
             # try to recover in a barbaric way
             self.es_failed = True
             r = super(SearchListModelMixin, self).list(request, *args, **kwargs)
+            if settings.DEBUG:
+                r.data["filter_fail_cause"] = str(e)
 
         # Add a failed message in case something went wrong with elasticsearch
         # for example if the cluster went down.

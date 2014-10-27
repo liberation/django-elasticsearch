@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
+from rest_framework.settings import api_settings
+
 from django.test import TestCase
 from django.db.models.query import QuerySet
 from django.contrib.auth.models import User
 from django.test.utils import override_settings
 
-from elasticsearch import Elasticsearch
-
 from django_elasticsearch.managers import es_client
-from django_elasticsearch.tests.utils import withattrs
 from django_elasticsearch.tests.models import TestModel
 from django_elasticsearch.contrib.restframework import ElasticsearchFilterBackend
 
@@ -32,8 +31,8 @@ class EsRestFrameworkTestCase(TestCase):
         TestModel.es.do_update()
 
         self.fake_request = Fake()
-        self.fake_request.QUERY_PARAMS = {'q': 'test'}
-        self.fake_request.GET = {'q': 'test'}
+        self.fake_request.QUERY_PARAMS = {api_settings.SEARCH_PARAM: 'test'}
+        self.fake_request.GET = {api_settings.SEARCH_PARAM: 'test'}
         self.fake_view = Fake()
         self.fake_view.action = 'list'
         self.queryset = TestModel.objects.all()

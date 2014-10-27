@@ -5,7 +5,6 @@ from django.db.models.signals import post_save, post_delete, post_syncdb
 from django.db.models.signals import class_prepared
 
 from django_elasticsearch.serializers import ModelJsonSerializer
-
 from django_elasticsearch.managers import ElasticsearchManager
 
 ELASTICSEARCH_AUTO_INDEX = getattr(settings, 'ELASTICSEARCH_AUTO_INDEX', True)
