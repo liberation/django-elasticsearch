@@ -42,7 +42,7 @@ class ModelJsonSerializer(object):
                 # Use the __unicode__ value of the related model instance.
                 if not hasattr(rel, '__unicode__'):
                     raise AttributeError(
-                        "You must define a get_{0}_val in the serializer class "
+                        "You must define a get_es_{0}_val in the serializer class "
                         "or an __unicode__ method in the related model of an "
                         "Elasticsearch indexed related field for it to work. "
                         "The method is missing in {1}."
@@ -56,7 +56,10 @@ class ModelJsonSerializer(object):
             return getattr(self, method_name)(source, field_name)
         field = self.model._meta.get_field(field_name)
         if field.rel:
-            return field.rel.to.objects.get(pk=source.get(field_name)['id'])
+            try:
+                return field.rel.to.objects.get(pk=source.get(field_name)['id'])
+            except TypeError:
+                pass
         return source.get(field_name)
 
     def serialize(self, instance):

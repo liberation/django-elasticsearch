@@ -97,7 +97,7 @@ class EsIndexableTestCase(TestCase):
         self.assertEqual(len(hits), 1)
 
     @withattrs(TestModel.Elasticsearch, 'fields', ['username'])
-    @withattrs(TestModel.Elasticsearch, 'mapping', {"username": {"boost": 20}})
+    @withattrs(TestModel.Elasticsearch, 'mappings', {"username": {"boost": 20}})
     @withattrs(TestModel.Elasticsearch, 'completion_fields', ['username'])
     @override_settings(ELASTICSEARCH_SETTINGS={
         "analysis": {

@@ -23,7 +23,7 @@ def withattrs(kls, attr, val):
             else:
                 obj = kls
 
-            old_val = getattr(obj, attr)
+            old_val = getattr(obj, attr, None)
             setattr(obj, attr, val)
             try:
                 func(*args, **kwargs)

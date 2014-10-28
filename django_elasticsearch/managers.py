@@ -413,7 +413,7 @@ class ElasticsearchManager():
             except (ValueError, AttributeError, KeyError, TypeError):
                 pass
             try:
-                mapping.update(self.model.Elasticsearch.mapping[field_name])
+                mapping.update(self.model.Elasticsearch.mappings[field_name])
             except (AttributeError, KeyError, TypeError):
                 pass
             mappings[field_name] = mapping
