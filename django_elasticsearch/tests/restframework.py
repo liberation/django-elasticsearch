@@ -85,15 +85,9 @@ class EsRestFrameworkTestCase(TestCase):
         TestModel.Elasticsearch.facets_fields = ['first_name',]
         filter_backend = ElasticsearchFilterBackend()
         s = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view)
-        expected = {
-            u'first_name': {
-                u'_type': u'terms',
-                u'total': 1,
-                u'terms': [{u'count': 1, u'term': u'test'}],
-                u'other': 0,
-                u'missing': 2
-            }
-        }
+        expected = {u'doc_count': 3,
+                    u'first_name': {u'buckets': [{u'doc_count': 1,
+                                                  u'key': u'test'}]}}
         self.assertEqual(s.facets, expected)
         TestModel.Elasticsearch.facets_fields = None
 

@@ -142,14 +142,18 @@ class EsQueryset(object):
         body = self._make_search_body()
 
         if self.facets_fields:
-            body['facets'] = dict([
+            aggs = dict([
                 (field, {'terms':
-                         {'field': field},
-                         'global': self.global_facets})
+                        {'field': field}})
                 for field in self.facets_fields
             ])
             if self.facets_limit:
-                body['facets'][field]['terms']['size'] = self.facets_limit
+                aggs[field]['terms']['size'] = self.facets_limit
+
+            if self.global_facets:
+                aggs = {'global_count': {'global': {}, 'aggs': aggs}}
+
+            body['aggs'] = aggs
 
         if self.suggest_fields:
             suggest = {}
@@ -176,7 +180,17 @@ class EsQueryset(object):
 
         r = es_client.search(**search_params)
 
-        self._facets = r.get('facets')
+        self._response = r
+
+        if self.facets_fields:
+            if self.global_facets:
+                try:
+                    self._facets = r['aggregations']['global_count']
+                except KeyError:
+                    self._facets = {}
+            else:
+                self._facets = r['aggregations']
+
         self._suggestions = r.get('suggest')
 
         self._results = [self.model.es.deserialize(source=e['_source'])
@@ -186,6 +200,7 @@ class EsQueryset(object):
         return self
 
     def facet(self, fields, limit=None, use_globals=True):
+        # TODO: bench global facets !!
         self.facets_fields = fields
         self.facets_limit = limit
         self.global_facets = use_globals
