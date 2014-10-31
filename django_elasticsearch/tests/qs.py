@@ -116,5 +116,43 @@ class EsQuerysetTestCase(TestCase):
         self.assertTrue(self.t3 in qs)
         self.assertTrue(self.t4 not in qs)
 
+    def test_filter_range(self):
+        qs = EsQueryset(TestModel).filter(id__gt=self.t2.id)
+        self.assertTrue(self.t1 not in qs)
+        self.assertTrue(self.t2 not in qs)
+        self.assertTrue(self.t3 in qs)
+        self.assertTrue(self.t4 in qs)
+
+        qs = EsQueryset(TestModel).filter(id__lt=self.t2.id)
+        self.assertTrue(self.t1 in qs)
+        self.assertTrue(self.t2 not in qs)
+        self.assertTrue(self.t3 not in qs)
+        self.assertTrue(self.t4 not in qs)
+
+        qs = EsQueryset(TestModel).filter(id__gte=self.t2.id)
+        self.assertTrue(self.t1 not in qs)
+        self.assertTrue(self.t2 in qs)
+        self.assertTrue(self.t3 in qs)
+        self.assertTrue(self.t4 in qs)
+
+        qs = EsQueryset(TestModel).filter(id__lte=self.t2.id)
+        self.assertTrue(self.t1 in qs)
+        self.assertTrue(self.t2 in qs)
+        self.assertTrue(self.t3 not in qs)
+        self.assertTrue(self.t4 not in qs)
+
+        qs = EsQueryset(TestModel).filter(id__range=(self.t2.id, self.t3.id))
+        self.assertTrue(self.t1 not in qs)
+        self.assertTrue(self.t2 in qs)
+        self.assertTrue(self.t3 in qs)
+        self.assertTrue(self.t4 not in qs)
+
+    def test_filter_date_range(self):
+        qs = EsQueryset(TestModel).filter(date_joined__gte=self.t2.date_joined)
+        self.assertTrue(self.t1 not in qs)
+        self.assertTrue(self.t2 in qs)
+        self.assertTrue(self.t3 in qs)
+        self.assertTrue(self.t4 in qs)
+
     def test_excluding(self):
         pass

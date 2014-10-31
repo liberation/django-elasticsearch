@@ -106,16 +106,35 @@ class EsQueryset(object):
 
         if self._filters:
             # TODO: should we add _cache = true ?!
-            # TODO: handle other type of filters ?!
-            filters = []
+            search['filter'] = {}
             for f in self._filters:
                 for field, value in f.items():
                     try:
                         value = value.lower()
                     except AttributeError:
                         pass
-                    filters.append({'term': {field: value}})
-            search['filter'] = {'bool': {'must': filters}}
+                    try:
+                        field, operator = field.split('__')
+                    except ValueError:  # could not split
+                        # this is also django's default lookup type
+                        operator = 'exact'
+
+                    if operator == 'exact':
+                        if 'bool' not in search['filter']:
+                            search['filter']['bool'] = {'must': {'term': {}}}
+                        search['filter']['bool']['must']['term'][field] = value
+                    elif operator in ['gt', 'gte', 'lt', 'lte']:
+                        if 'range' not in search['filter']:
+                            search['filter']['range'] = {field: {}}
+                        search['filter']['range'][field][operator] = value
+                    elif operator == 'range':
+                        if 'range' not in search['filter']:
+                            search['filter']['range'] = {field: {}}
+                        search['filter']['range'][field]['gte'] = value[0]
+                        search['filter']['range'][field]['lte'] = value[1]
+                    else:
+                        raise NotImplementedError("{0} is not a valid filter lookup type.".format(operator))
+
             body['query'] = {'filtered': search}
         else:
             body = search
