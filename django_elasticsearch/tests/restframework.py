@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from rest_framework.settings import api_settings
 
+from django.conf import settings
 from django.test import TestCase
 from django.db.models.query import QuerySet
 from django.contrib.auth.models import User
@@ -35,7 +36,7 @@ class EsRestFrameworkTestCase(TestCase):
         self.fake_request.GET = {api_settings.SEARCH_PARAM: 'test'}
         self.fake_view = Fake()
         self.fake_view.action = 'list'
-        self.queryset = TestModel.objects.all()
+        self.queryset = TestModel.es.queryset.all()
 
     def tearDown(self):
         super(EsRestFrameworkTestCase, self).tearDown()

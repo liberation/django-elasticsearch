@@ -3,7 +3,7 @@ import mock
 from django.test import TestCase
 from django.test.utils import override_settings
 
-from django_elasticsearch.managers import es_client
+from django_elasticsearch.client import es_client
 from django_elasticsearch.managers import EsQueryset
 from django_elasticsearch.tests.models import TestModel
 
@@ -33,14 +33,14 @@ class EsQuerysetTestCase(TestCase):
         es_client.indices.delete(index=TestModel.es.get_index())
 
     def test_all(self):
-        qs = EsQueryset(TestModel)
+        qs = TestModel.es.queryset.all()
         self.assertTrue(self.t1 in qs)
         self.assertTrue(self.t2 in qs)
         self.assertTrue(self.t3 in qs)
         self.assertTrue(self.t4 in qs)
 
     def test_repr(self):
-        qs = EsQueryset(TestModel).order_by('id')
+        qs = TestModel.es.queryset.order_by('id')
         expected = str(TestModel.objects.all())
         self.assertEqual(expected, str(qs.all()))
 
@@ -69,7 +69,7 @@ class EsQuerysetTestCase(TestCase):
         mocked.assert_called_once()
 
     def test_facets(self):
-        qs = EsQueryset(TestModel).facet(['last_name'])
+        qs = TestModel.es.queryset.facet(['last_name'])
         expected = {u'doc_count': 4,
                     u'last_name': {u'buckets': [{u'doc_count': 3,
                                                  u'key': u'smith'},
@@ -78,7 +78,7 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(expected, qs.facets)
 
     def test_non_global_facets(self):
-        qs = EsQueryset(TestModel).facet(['last_name'], use_globals=False).query("Foo")
+        qs = TestModel.es.queryset.facet(['last_name'], use_globals=False).query("Foo")
         expected = {u'last_name': {u'buckets': [{u'doc_count': 1,
                                                  u'key': u'bar'}]}}
         self.assertEqual(expected, qs.facets)
@@ -96,59 +96,59 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(expected, qs.suggestions)
 
     def test_count(self):
-        self.assertEqual(EsQueryset(TestModel).count(), 4)
+        self.assertEqual(TestModel.es.queryset.count(), 4)
         self.assertEqual(EsQueryset(TestModel).query("John").count(), 1)
         self.assertEqual(EsQueryset(TestModel)
                          .filter(last_name=u"Smith")
                          .count(), 3)
 
     def test_ordering(self):
-        qs = EsQueryset(TestModel).order_by('username')
+        qs = TestModel.es.queryset.order_by('username')
         self.assertTrue(qs[0], self.t3)
         self.assertTrue(qs[1], self.t4)
         self.assertTrue(qs[2], self.t2)
         self.assertTrue(qs[3], self.t1)
 
     def test_filtering(self):
-        qs = EsQueryset(TestModel).filter(last_name=u"Smith")
+        qs = TestModel.es.queryset.filter(last_name=u"Smith")
         self.assertTrue(self.t1 in qs)
         self.assertTrue(self.t2 in qs)
         self.assertTrue(self.t3 in qs)
         self.assertTrue(self.t4 not in qs)
 
     def test_filter_range(self):
-        qs = EsQueryset(TestModel).filter(id__gt=self.t2.id)
+        qs = TestModel.es.queryset.filter(id__gt=self.t2.id)
         self.assertTrue(self.t1 not in qs)
         self.assertTrue(self.t2 not in qs)
         self.assertTrue(self.t3 in qs)
         self.assertTrue(self.t4 in qs)
 
-        qs = EsQueryset(TestModel).filter(id__lt=self.t2.id)
+        qs = TestModel.es.queryset.filter(id__lt=self.t2.id)
         self.assertTrue(self.t1 in qs)
         self.assertTrue(self.t2 not in qs)
         self.assertTrue(self.t3 not in qs)
         self.assertTrue(self.t4 not in qs)
 
-        qs = EsQueryset(TestModel).filter(id__gte=self.t2.id)
+        qs = TestModel.es.queryset.filter(id__gte=self.t2.id)
         self.assertTrue(self.t1 not in qs)
         self.assertTrue(self.t2 in qs)
         self.assertTrue(self.t3 in qs)
         self.assertTrue(self.t4 in qs)
 
-        qs = EsQueryset(TestModel).filter(id__lte=self.t2.id)
+        qs = TestModel.es.queryset.filter(id__lte=self.t2.id)
         self.assertTrue(self.t1 in qs)
         self.assertTrue(self.t2 in qs)
         self.assertTrue(self.t3 not in qs)
         self.assertTrue(self.t4 not in qs)
 
-        qs = EsQueryset(TestModel).filter(id__range=(self.t2.id, self.t3.id))
+        qs = TestModel.es.queryset.filter(id__range=(self.t2.id, self.t3.id))
         self.assertTrue(self.t1 not in qs)
         self.assertTrue(self.t2 in qs)
         self.assertTrue(self.t3 in qs)
         self.assertTrue(self.t4 not in qs)
 
     def test_filter_date_range(self):
-        qs = EsQueryset(TestModel).filter(date_joined__gte=self.t2.date_joined)
+        qs = TestModel.es.queryset.filter(date_joined__gte=self.t2.date_joined)
         self.assertTrue(self.t1 not in qs)
         self.assertTrue(self.t2 in qs)
         self.assertTrue(self.t3 in qs)

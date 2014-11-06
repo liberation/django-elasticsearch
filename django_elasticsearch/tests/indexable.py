@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from unittest import SkipTest
 
+from elasticsearch import NotFoundError
+
 from django.test import TestCase
 from django.test.utils import override_settings
 
@@ -46,12 +48,12 @@ class EsIndexableTestCase(TestCase):
     def test_do_index(self):
         self.instance.es.do_index()
         r = self.instance.es.get()
-        self.assertTrue(r['found'])
+        self.assertTrue(isinstance(r, TestModel))
 
     def test_delete(self):
         self.instance.es.delete()
-        r = self.instance.es.get(ignore=404)
-        self.assertFalse(r['found'])
+        with self.assertRaises(NotFoundError):
+            self.instance.es.get()
 
     # TODO: this test fails, i don't know why
     @SkipTest

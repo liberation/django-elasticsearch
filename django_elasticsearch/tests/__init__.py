@@ -1,8 +1,21 @@
 from unittest import TestSuite
 from unittest import TestLoader
+from unittest import TestCase
 
 from django_elasticsearch.tests.qs import EsQuerysetTestCase
 from django_elasticsearch.tests.indexable import EsIndexableTestCase
+
+
+class FakeTestCase(TestCase):
+        pass
+
+try:
+    from django_elasticsearch.tests.restframework import EsRestFrameworkTestCase
+except Exception, e:
+    print 'Skipping test of restframework contrib, reason: ', e
+    EsRestFrameworkTestCase = FakeTestCase
+else:
+    print 'App restframework found, testing contrib.restframework'
 
 
 def suite():
@@ -10,23 +23,8 @@ def suite():
     loader = TestLoader()
 
     test_cases = [EsQuerysetTestCase,
-                  EsIndexableTestCase]
-
-    try:
-        from django_elasticsearch.tests.restframework import EsRestFrameworkTestCase
-    except Exception, e:
-        print 'Skipping test of restframework contrib, reason: ', e
-    else:
-        print 'App restframework found, testing contrib.restframework'
-        test_cases.append(EsRestFrameworkTestCase)
-
-    try:
-        from django_elasticsearch.tests.taggitt import EsTaggitTestCase
-    except Exception, e:
-        print 'Skipping test of taggit contrib, reason: ', e
-    else:
-        print 'App taggit found, testing contrib.taggit'
-        test_cases.append(EsTaggitTestCase)
+                  EsIndexableTestCase,
+                  EsRestFrameworkTestCase]
 
     for test_case in test_cases:
         tests = loader.loadTestsFromTestCase(test_case)
