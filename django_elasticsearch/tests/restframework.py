@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from rest_framework.settings import api_settings
 
-from django.conf import settings
+# from django.conf import settings
 from django.test import TestCase
 from django.db.models.query import QuerySet
 from django.contrib.auth.models import User
@@ -46,9 +46,10 @@ class EsRestFrameworkTestCase(TestCase):
         filter_backend = ElasticsearchFilterBackend()
         queryset = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view)
 
-        self.assertTrue(self.model1 in queryset)
-        self.assertTrue(self.model2 in queryset)
-        self.assertFalse(self.model3 in queryset)
+        l = queryset.deserialize()
+        self.assertTrue(self.model1 in l)
+        self.assertTrue(self.model2 in l)
+        self.assertFalse(self.model3 in l)
 
     def test_filter_backend_on_normal_model(self):
         filter_backend = ElasticsearchFilterBackend()
@@ -58,10 +59,10 @@ class EsRestFrameworkTestCase(TestCase):
     def test_filter_backend_ordering(self):
         filter_backend = ElasticsearchFilterBackend()
         self.fake_view.ordering = ('-username',)
-        queryset = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view)
+        queryset = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view).deserialize()
 
-        self.assertTrue(queryset[0].id, self.model2.id)
-        self.assertTrue(queryset[1].id, self.model1.id)
+        self.assertEqual(queryset[0].id, self.model2.id)
+        self.assertEqual(queryset[1].id, self.model1.id)
         del self.fake_view.ordering
 
     def test_filter_backend_no_list(self):
@@ -75,12 +76,12 @@ class EsRestFrameworkTestCase(TestCase):
     def test_filter_backend_filters(self):
         r = self.client.get('/tests/', {'username': '1'})
         self.assertEqual(r.data['count'], 1)
-        self.assertTrue(r.data['results'][0]['id'], self.model1.id)
+        self.assertEqual(r.data['results'][0]['id'], self.model1.id)
 
     def test_pagination(self):
-        r = self.client.get('/tests/', {'page': 2, 'page_size':1})
+        r = self.client.get('/tests/', {'ordering': '-id', 'page': 2, 'page_size':1})
         self.assertEqual(r.data['count'], 3)
-        self.assertTrue(r.data['results'][0]['id'], self.model2.id)
+        self.assertEqual(r.data['results'][0]['id'], self.model2.id)
 
     def test_facets(self):
         TestModel.Elasticsearch.facets_fields = ['first_name',]

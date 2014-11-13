@@ -33,7 +33,7 @@ class EsQuerysetTestCase(TestCase):
         es_client.indices.delete(index=TestModel.es.get_index())
 
     def test_all(self):
-        qs = TestModel.es.queryset.all()
+        qs = TestModel.es.queryset.all().deserialize()
         self.assertTrue(self.t1 in qs)
         self.assertTrue(self.t2 in qs)
         self.assertTrue(self.t3 in qs)
@@ -42,7 +42,7 @@ class EsQuerysetTestCase(TestCase):
     def test_repr(self):
         qs = TestModel.es.queryset.order_by('id')
         expected = str(TestModel.objects.all())
-        self.assertEqual(expected, str(qs.all()))
+        self.assertEqual(expected, str(qs.all().deserialize()))
 
     def test_use_cache(self):
         # Note: we use _make_search_body because it's only called
@@ -103,52 +103,52 @@ class EsQuerysetTestCase(TestCase):
                          .count(), 3)
 
     def test_ordering(self):
-        qs = TestModel.es.queryset.order_by('username')
-        self.assertTrue(qs[0], self.t3)
-        self.assertTrue(qs[1], self.t4)
-        self.assertTrue(qs[2], self.t2)
-        self.assertTrue(qs[3], self.t1)
+        qs = TestModel.es.queryset.order_by('username').deserialize()
+        self.assertEqual(qs[0], self.t3)
+        self.assertEqual(qs[1], self.t4)
+        self.assertEqual(qs[2], self.t2)
+        self.assertEqual(qs[3], self.t1)
 
     def test_filtering(self):
-        qs = TestModel.es.queryset.filter(last_name=u"Smith")
+        qs = TestModel.es.queryset.filter(last_name=u"Smith").deserialize()
         self.assertTrue(self.t1 in qs)
         self.assertTrue(self.t2 in qs)
         self.assertTrue(self.t3 in qs)
         self.assertTrue(self.t4 not in qs)
 
     def test_filter_range(self):
-        qs = TestModel.es.queryset.filter(id__gt=self.t2.id)
+        qs = TestModel.es.queryset.filter(id__gt=self.t2.id).deserialize()
         self.assertTrue(self.t1 not in qs)
         self.assertTrue(self.t2 not in qs)
         self.assertTrue(self.t3 in qs)
         self.assertTrue(self.t4 in qs)
 
-        qs = TestModel.es.queryset.filter(id__lt=self.t2.id)
+        qs = TestModel.es.queryset.filter(id__lt=self.t2.id).deserialize()
         self.assertTrue(self.t1 in qs)
         self.assertTrue(self.t2 not in qs)
         self.assertTrue(self.t3 not in qs)
         self.assertTrue(self.t4 not in qs)
 
-        qs = TestModel.es.queryset.filter(id__gte=self.t2.id)
+        qs = TestModel.es.queryset.filter(id__gte=self.t2.id).deserialize()
         self.assertTrue(self.t1 not in qs)
         self.assertTrue(self.t2 in qs)
         self.assertTrue(self.t3 in qs)
         self.assertTrue(self.t4 in qs)
 
-        qs = TestModel.es.queryset.filter(id__lte=self.t2.id)
+        qs = TestModel.es.queryset.filter(id__lte=self.t2.id).deserialize()
         self.assertTrue(self.t1 in qs)
         self.assertTrue(self.t2 in qs)
         self.assertTrue(self.t3 not in qs)
         self.assertTrue(self.t4 not in qs)
 
-        qs = TestModel.es.queryset.filter(id__range=(self.t2.id, self.t3.id))
+        qs = TestModel.es.queryset.filter(id__range=(self.t2.id, self.t3.id)).deserialize()
         self.assertTrue(self.t1 not in qs)
         self.assertTrue(self.t2 in qs)
         self.assertTrue(self.t3 in qs)
         self.assertTrue(self.t4 not in qs)
 
     def test_filter_date_range(self):
-        qs = TestModel.es.queryset.filter(date_joined__gte=self.t2.date_joined)
+        qs = TestModel.es.queryset.filter(date_joined__gte=self.t2.date_joined).deserialize()
         self.assertTrue(self.t1 not in qs)
         self.assertTrue(self.t2 in qs)
         self.assertTrue(self.t3 in qs)

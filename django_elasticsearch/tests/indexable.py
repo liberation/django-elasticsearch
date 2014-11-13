@@ -47,7 +47,7 @@ class EsIndexableTestCase(TestCase):
 
     def test_do_index(self):
         self.instance.es.do_index()
-        r = self.instance.es.get()
+        r = self.instance.es.deserialize(self.instance.es.get())
         self.assertTrue(isinstance(r, TestModel))
 
     def test_delete(self):
@@ -166,6 +166,6 @@ class EsIndexableTestCase(TestCase):
     def test_reevaluate(self):
         # test that the request is resent if something changed filters, ordering, ndx
         q = TestModel.es.search('woot')
-        self.assertTrue(self.instance in q)  # evaluate
+        self.assertTrue(self.instance in q.deserialize())  # evaluate
         q = q.filter(last_name='grut')
-        self.assertFalse(self.instance in q)  # evaluate
+        self.assertFalse(self.instance in q.deserialize())  # evaluate

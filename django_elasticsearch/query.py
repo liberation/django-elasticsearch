@@ -202,8 +202,8 @@ class EsQueryset(QuerySet):
 
         self._suggestions = r.get('suggest')
 
-        # TODO: meh, shouldn't use anything from self.model.es
-        self._result_cache = [self.model.es.deserialize(e['_source']) for e in r['hits']['hits']]
+        # self.model.es.deserialize(
+        self._result_cache = [e['_source'] for e in r['hits']['hits']]
         self._max_score = r['hits']['max_score']
         self._total = r['hits']['total']
         return self
@@ -283,7 +283,13 @@ class EsQueryset(QuerySet):
                           doc_type=self.model.es.get_doc_type(),
                           id=pk)
         self._response = r
-        return self.model.es.deserialize(r['_source'])
+        return r['_source']
+
+    def deserialize(self):
+        """
+        Transform the queryset contents to the corresponding django model instances
+        """
+        return [self.model.es.deserialize(e) for e in self]
 
     def update(self):
         raise NotImplementedError("Db operational methods have been "

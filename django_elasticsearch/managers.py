@@ -83,9 +83,10 @@ class ElasticsearchManager():
         actually is synchronised with the db one.
         That is why the save() method is desactivated.
         """
-        instance = self.model(**self.model.Elasticsearch
-                              .serializer_class(self.model)
-                              .deserialize(source))
+        obj = (self.model.Elasticsearch
+               .serializer_class(self.model)
+               .deserialize(source))
+        instance = self.model(**obj)
         instance._is_es_deserialized = True
         return instance
 
