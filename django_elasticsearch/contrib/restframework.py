@@ -19,6 +19,7 @@ except ImportError:
     from urllib3.connection import ConnectionError
 from elasticsearch import TransportError
 from django_elasticsearch.models import EsIndexable
+from django_elasticsearch.query import EsQueryset
 
 
 class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
@@ -73,7 +74,10 @@ class ElasticsearchPaginationSerializer(PaginationSerializer):
 
 class ElasticsearchPaginator(Paginator):
     def _get_num_pages(self):
-        return self.object_list._total
+        try:
+            return self.object_list._total
+        except AttributeError:
+            return self.objects_list.count
 
 
 class IndexableModelMixin(ListModelMixin):
@@ -83,7 +87,6 @@ class IndexableModelMixin(ListModelMixin):
     filter_backends = [ElasticsearchFilterBackend,]
     FILTER_STATUS_MESSAGE_OK = 'Ok'
     FILTER_STATUS_MESSAGE_FAILED = 'Failed'
-    pagination_serializer_class = ElasticsearchPaginationSerializer
     paginator_class = ElasticsearchPaginator
 
     def __init__(self, *args, **kwargs):
@@ -95,6 +98,11 @@ class IndexableModelMixin(ListModelMixin):
             return super(IndexableModelMixin, self).get_object()
         except NotFoundError:
             raise Http404
+
+    def get_pagination_serializer(self, page):
+        if not self.es_failed:
+            return ElasticsearchPaginationSerializer(instance=page)
+        return super(IndexableModelMixin, self).get_pagination_serializer(page)
 
     def get_queryset(self):
         if self.action in ['list', 'retrieve'] and not self.es_failed:
@@ -112,14 +120,14 @@ class IndexableModelMixin(ListModelMixin):
 
     def list(self, request, *args, **kwargs):
         r = super(IndexableModelMixin, self).list(request, *args, **kwargs)
-
         # Injecting the facets in the response if the FilterBackend was used.
-        if getattr(self.object_list, 'facets', None):
-            r.data['facets'] = self.object_list.facets
+        if not self.es_failed:
+            if getattr(self.object_list, 'facets', None):
+                r.data['facets'] = self.object_list.facets
 
-        # And the suggestions
-        if getattr(self.object_list, 'suggestions', None):
-            r.data['suggestions'] = self.object_list.suggestions
+            # And the suggestions
+            if getattr(self.object_list, 'suggestions', None):
+                r.data['suggestions'] = self.object_list.suggestions
 
         return r
 
@@ -129,7 +137,7 @@ class IndexableModelMixin(ListModelMixin):
         except (ConnectionError, TransportError), e:
             self.es_failed = True
             r = super(IndexableModelMixin, self).dispatch(request, *args, **kwargs)
-            if settings.DEBUG:
+            if settings.DEBUG and type(r.data) is dict:
                 r.data["filter_fail_cause"] = str(e)
 
         # Add a failed message in case something went wrong with elasticsearch
