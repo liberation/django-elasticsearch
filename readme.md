@@ -197,12 +197,19 @@ You can also use the ```MyModel.es.check_cluster()``` method which returns True 
 TESTS
 =====
 
-There is no test project in this repository, add ```django_elasticsearch``` to django setting INSTALLED_APPS.
+```
+$ cd test_project
+$ virtualenv env
+$ . env/bin/activate
+$ pip install -r ../requirements.txt  # app requirements
+$ pip install -r requirements.txt  # tests requirements
+$ python manage.py test django_elasticsearch.tests
+```
 
-From your project call:
-```
-python manage.py test django_elasticsearch
-```
+**Note**:
+The test suite is runned with `.tests` for retro compatibility reasons, if anyone is aware of a better recipe, let me know.
+To test with a older version of django, simply install it with ```pip install django==1.4.5``` and run ```python manage.py test django_elasticsearch```.
+
 
 TODO
 ====

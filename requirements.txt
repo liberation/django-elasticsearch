@@ -1,5 +1,1 @@
 elasticsearch
-
-# dev tools
-mock
-restframework
