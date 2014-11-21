@@ -1,4 +1,4 @@
-django_elasticsearch is a wrapper around py-elasticsearch that automates the indexation and search of django models.
+django_elasticsearch is a wrapper around py-elasticsearch that automates the indexation and search of django models.  
 **Note**: if your elasticsearch documents/mappings are not close to django models, this package is probably not for you.
 
 INSTALL
@@ -26,6 +26,7 @@ from django_elasticsearch.models import EsIndexable
 
 
 MyModel(EsIndexable, models.Model):
+    foo = models.IntegerField()
     [...]
 
 ```
@@ -33,8 +34,10 @@ MyModel(EsIndexable, models.Model):
 Then you can do:
 ```python
 >>> q = MyModel.es.search('foo')
+>>> q
+[{'id': 1, 'foo': 'A value'}, {'id': 2, 'foo': 'Another value'}, ...]
+>>> q.deserialize()
 [<MyModel #1>, <MyModel #2>, ...]
-
 ```
 which returns an instance of a EsQueryset, it's like a django Queryset but it instanciates models from Elasticsearch sources (and thus db operations are disactivated).
 
@@ -160,16 +163,12 @@ To access the facets you can use the facets property of the EsQueryset:
 ```python
 >>> MyModel.Elasticsearch.default_facets_fields
 ['author']
->>> q = MyModel.es.search('foo')  # returns a lazy EsQueryset instance
+>>> q = MyModel.es.search('woot', facets='foo')  # returns a lazy EsQueryset instance
 >>> q.facets  # evals the query and returns the facets
-{u'author': {
-   u'_type': u'terms',
-   u'total': 1,
-   u'terms': [{u'count': 1, u'term': u'test'}],
-   u'other': 0,
-   u'missing': 2
-   }
-}
+{u'doc_count': 45,
+ u'foo': {u'buckets': [
+ {u'doc_count': 13, u'key': u'bar'},
+]}}
 ```
 Note that es.search automatically add the default facets set on the model to the query, but you can also set them manually with the ```facets``` and ```facets_limit``` parameters.
 
