@@ -46,21 +46,25 @@ CONFIGURATION
 Project scope configuration (django settings):
 ----------------------------------------------
 
-* **ELASTICSEARCH_URL**
-defaults to 'http://localhost:9200'
+* **ELASTICSEARCH_URL**  
+Defaults to 'http://localhost:9200'  
 The url of your elasticsearch cluster/instance.
 
-* **ELASTICSEARCH_AUTO_INDEX**
-defaults to True
+* **ELASTICSEARCH_AUTO_INDEX**  
+Defaults to True  
 Set to false if you want to handle the elasticsearch operations yourself. By default the creation of the index, the indexation and deletions are hooked respectively to the post_syncdb, post_save and post_delete signals.
 If you have already done a syncdb, you can just call ```MyModel.es.create_index()``` to create the index/mapping.
 
-* **ELASTICSEARCH_SETTINGS**
-no defaults
+* **ELASTICSEARCH_DEFAULT_INDEX**  
+Defaults to 'django'  
+The default index name used for every document, can be overrided for a model with the ```model.Meta.Elasticsearch.index``` attribute.
+
+* **ELASTICSEARCH_SETTINGS**  
+no defaults  
 If set, will be passed when creating any index [as is](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-create-index.html#create-index-settings).
 
-* **ELASTICSEARCH_FUZZINESS**
-defaults to 0.5
+* **ELASTICSEARCH_FUZZINESS**  
+defaults to 0.5  
 Will be applied to any es.search query, See the [fuzziness section](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/common-options.html#fuzziness) of the elasticsearch documentation.
 
 Model scope configuration:
