@@ -7,10 +7,12 @@ from django.core.paginator import Paginator
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.mixins import ListModelMixin
+from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.decorators import list_route
 from rest_framework.filters import OrderingFilter
 from rest_framework.filters import DjangoFilterBackend
 from rest_framework.pagination import PaginationSerializer
+from rest_framework.serializers import BaseSerializer
 
 from elasticsearch import NotFoundError
 try:
@@ -19,7 +21,6 @@ except ImportError:
     from urllib3.connection import ConnectionError
 from elasticsearch import TransportError
 from django_elasticsearch.models import EsIndexable
-from django_elasticsearch.query import EsQueryset
 
 
 class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
@@ -32,10 +33,10 @@ class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
                                  "Make it indexable by subclassing "
                                  "django_elasticsearch.models.EsIndexable."
                                  "".format(model))
-            query = request.QUERY_PARAMS.get(api_settings.SEARCH_PARAM, '')
+            search_param = getattr(view, 'search_param', api_settings.SEARCH_PARAM)
+            query = request.QUERY_PARAMS.get(search_param, '')
 
             # order of precedence : query params > class attribute > model Meta attribute
-
             ordering = self.get_ordering(request)
             if not ordering:
                 ordering = self.get_default_ordering(view)
@@ -44,7 +45,6 @@ class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
             filters = dict([(k, v)
                             for k, v in request.GET.iteritems()
                             if k in filterable])
-
             q = queryset.search(query).filter(**filters)
             if ordering:
                 q.order_by(*ordering)
@@ -80,7 +80,27 @@ class ElasticsearchPaginator(Paginator):
             return self.objects_list.count
 
 
-class IndexableModelMixin(ListModelMixin):
+class FakeSerializer(BaseSerializer):
+
+    @property
+    def base_fields(self):
+        return {}
+
+    @property
+    def data(self):
+        self._data = super(FakeSerializer, self).data
+        if type(self._data) == list:  # better way ?
+            self._data = {
+                'count': self.object.count(),
+                'results': self._data
+            }
+        return self._data
+
+    def to_native(self, obj):
+        return obj
+
+
+class IndexableModelMixin(object):
     """
     Use EsQueryset and ElasticsearchFilterBackend if available
     """
@@ -98,6 +118,12 @@ class IndexableModelMixin(ListModelMixin):
             return super(IndexableModelMixin, self).get_object()
         except NotFoundError:
             raise Http404
+
+    def get_serializer_class(self):
+        if not self.es_failed:
+            # let's return the elasticsearch response as it is.
+            return FakeSerializer
+        return super(IndexableModelMixin, self).get_serializer_class()
 
     def get_pagination_serializer(self, page):
         if not self.es_failed:
@@ -120,12 +146,10 @@ class IndexableModelMixin(ListModelMixin):
 
     def list(self, request, *args, **kwargs):
         r = super(IndexableModelMixin, self).list(request, *args, **kwargs)
-        # Injecting the facets in the response if the FilterBackend was used.
         if not self.es_failed:
             if getattr(self.object_list, 'facets', None):
                 r.data['facets'] = self.object_list.facets
 
-            # And the suggestions
             if getattr(self.object_list, 'suggestions', None):
                 r.data['suggestions'] = self.object_list.suggestions
 

@@ -16,7 +16,6 @@ class Fake():
     pass
 
 
-@override_settings(REST_FRAMEWORK={})
 class EsRestFrameworkTestCase(TestCase):
     urls = 'django_elasticsearch.tests.urls'
 

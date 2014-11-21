@@ -9,6 +9,8 @@ from django_elasticsearch.contrib.restframework import IndexableModelMixin
 class TestViewSet(AutoCompletionMixin, IndexableModelMixin, ModelViewSet):
     model = TestModel
     filter_fields = ('username',)
+    search_param = 'q'
+    paginate_by_param = 'page_size'
 
 router = DefaultRouter()
 router.register(r'tests', TestViewSet)

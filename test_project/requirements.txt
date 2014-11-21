@@ -5,4 +5,3 @@ mock
 six
 django-filter
 djangorestframework==2.4
--e git+git://github.com/liberation/django-elasticsearch.git#egg=django-elasticsearch

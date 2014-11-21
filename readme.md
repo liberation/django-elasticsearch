@@ -203,12 +203,11 @@ $ virtualenv env
 $ . env/bin/activate
 $ pip install -r ../requirements.txt  # app requirements
 $ pip install -r requirements.txt  # tests requirements
-$ python manage.py test django_elasticsearch.tests
+$ python manage.py test django_elasticsearch
 ```
 
 **Note**:
-The test suite is runned with `.tests` for retro compatibility reasons, if anyone is aware of a better recipe, let me know.
-To test with a older version of django, simply install it with ```pip install django==1.4.5``` and run ```python manage.py test django_elasticsearch```.
+To test with a older version of django, simply install it with, for example, ```pip install django==1.4.5``` and run ```python manage.py test django_elasticsearch```.
 
 
 TODO
@@ -217,6 +216,7 @@ TODO
 * fix ```es.mlt```
 * implement ```es.diff```
 * implement ```es.raw```
+* understand why the `freq` attribute in ```tests.qs.EsQuerysetTestCase.test_suggestions``` is 6 when there is only 3 hits.
 * up the test coverage (84%)
 * docstrings
 * make EsQueryset API closer to django Queryset

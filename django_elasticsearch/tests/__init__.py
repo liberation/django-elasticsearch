@@ -3,12 +3,12 @@ from unittest import TestLoader
 from unittest import TestCase
 
 from django_elasticsearch.tests.models import TestModel
-from django_elasticsearch.tests.qs import EsQuerysetTestCase
-from django_elasticsearch.tests.indexable import EsIndexableTestCase
+from django_elasticsearch.tests.test_qs import EsQuerysetTestCase
+from django_elasticsearch.tests.test_indexable import EsIndexableTestCase
 
 
 try:
-    from django_elasticsearch.tests.restframework import EsRestFrameworkTestCase
+    from django_elasticsearch.test.test_restframework import EsRestFrameworkTestCase
 except Exception, e:
     print 'Skipping test of restframework contrib, reason: ', e
 
