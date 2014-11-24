@@ -8,7 +8,7 @@ from django_elasticsearch.tests.test_indexable import EsIndexableTestCase
 
 
 try:
-    from django_elasticsearch.test.test_restframework import EsRestFrameworkTestCase
+    from django_elasticsearch.tests.test_restframework import EsRestFrameworkTestCase
 except Exception, e:
     print 'Skipping test of restframework contrib, reason: ', e
 

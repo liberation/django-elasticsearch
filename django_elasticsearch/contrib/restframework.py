@@ -7,7 +7,6 @@ from django.core.paginator import Paginator
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.mixins import ListModelMixin
-from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.decorators import list_route
 from rest_framework.filters import OrderingFilter
 from rest_framework.filters import DjangoFilterBackend
@@ -72,16 +71,7 @@ class ElasticsearchPaginationSerializer(PaginationSerializer):
         return super(ElasticsearchPaginationSerializer, self).data
 
 
-class ElasticsearchPaginator(Paginator):
-    def _get_num_pages(self):
-        try:
-            return self.object_list._total
-        except AttributeError:
-            return self.objects_list.count
-
-
 class FakeSerializer(BaseSerializer):
-
     @property
     def base_fields(self):
         return {}
@@ -107,7 +97,6 @@ class IndexableModelMixin(object):
     filter_backends = [ElasticsearchFilterBackend,]
     FILTER_STATUS_MESSAGE_OK = 'Ok'
     FILTER_STATUS_MESSAGE_FAILED = 'Failed'
-    paginator_class = ElasticsearchPaginator
 
     def __init__(self, *args, **kwargs):
         self.es_failed = False
@@ -127,7 +116,8 @@ class IndexableModelMixin(object):
 
     def get_pagination_serializer(self, page):
         if not self.es_failed:
-            return ElasticsearchPaginationSerializer(instance=page)
+            context = self.get_serializer_context()
+            return ElasticsearchPaginationSerializer(instance=page, context=context)
         return super(IndexableModelMixin, self).get_pagination_serializer(page)
 
     def get_queryset(self):
