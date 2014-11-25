@@ -1,8 +1,6 @@
 from django.http import Http404
 from django.conf import settings
 from django.core.paginator import Page
-from django.core.paginator import Paginator
-
 
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
@@ -109,7 +107,7 @@ class IndexableModelMixin(object):
             raise Http404
 
     def get_serializer_class(self):
-        if not self.es_failed:
+        if self.action in ['list', 'retrieve'] and not self.es_failed:
             # let's return the elasticsearch response as it is.
             return FakeSerializer
         return super(IndexableModelMixin, self).get_serializer_class()
@@ -151,16 +149,14 @@ class IndexableModelMixin(object):
         except (ConnectionError, TransportError), e:
             self.es_failed = True
             r = super(IndexableModelMixin, self).dispatch(request, *args, **kwargs)
-            if settings.DEBUG and type(r.data) is dict:
+            if settings.DEBUG and isinstance(r.data, dict):
                 r.data["filter_fail_cause"] = str(e)
-
         # Add a failed message in case something went wrong with elasticsearch
         # for example if the cluster went down.
-        if type(r.data) is dict and self.action in ['list', 'retrieve']:
+        if isinstance(r.data, dict) and self.action in ['list', 'retrieve']:
             r.data['filter_status'] = (self.es_failed
                                        and self.FILTER_STATUS_MESSAGE_FAILED
                                        or self.FILTER_STATUS_MESSAGE_OK)
-
         return r
 
 

@@ -193,7 +193,7 @@ class ElasticsearchManager():
                 pass
             mappings[field_name] = mapping
 
-        # add a suggest mapping for every suggestable field
+        # add a completion mapping for every auto completable field
         fields = self.model.Elasticsearch.completion_fields or []
         for field_name in fields:
             complete_name = "{0}_complete".format(field_name)

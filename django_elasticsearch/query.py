@@ -76,7 +76,6 @@ class EsQueryset(QuerySet):
         # if we pass a body without a query, elasticsearch complains
         if self._total:
             return self._total
-
         r = es_client.count(
             index=self.model.es.get_index(),
             doc_type=self.model.es.get_doc_type(),
@@ -223,6 +222,7 @@ class EsQueryset(QuerySet):
 
         if facets is None and self.model.Elasticsearch.facets_fields:
             facets = self.model.Elasticsearch.facets_fields
+
         if facets:
             self.facet(facets,
                        limit=facets_limit or self.model.Elasticsearch.facets_limit,
@@ -274,6 +274,7 @@ class EsQueryset(QuerySet):
 
     ## getters
     def all(self):
+        self.search('')
         return self
 
     def get(self, **kwargs):

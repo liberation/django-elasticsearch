@@ -1,13 +1,18 @@
 # -*- coding: utf-8 -*-
-from rest_framework.settings import api_settings
+import mock
 
-# from django.conf import settings
+from rest_framework import status
+from rest_framework.settings import api_settings
+from rest_framework.test import APIClient
+
 from django.test import TestCase
 from django.db.models.query import QuerySet
 from django.contrib.auth.models import User
-from django.test.utils import override_settings
 
-from django_elasticsearch.managers import es_client
+from elasticsearch import TransportError
+
+from django_elasticsearch.client import es_client
+from django_elasticsearch.tests.utils import withattrs
 from django_elasticsearch.tests.models import TestModel
 from django_elasticsearch.contrib.restframework import ElasticsearchFilterBackend
 
@@ -41,7 +46,7 @@ class EsRestFrameworkTestCase(TestCase):
         super(EsRestFrameworkTestCase, self).tearDown()
         es_client.indices.delete(index=TestModel.es.get_index())
 
-    def test_filter_backend(self):
+    def _test_filter_backend(self):
         filter_backend = ElasticsearchFilterBackend()
         queryset = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view)
 
@@ -49,6 +54,9 @@ class EsRestFrameworkTestCase(TestCase):
         self.assertTrue(self.model1 in l)
         self.assertTrue(self.model2 in l)
         self.assertFalse(self.model3 in l)
+
+    def test_filter_backend(self):
+        self._test_filter_backend()
 
     def test_filter_backend_on_normal_model(self):
         filter_backend = ElasticsearchFilterBackend()
@@ -72,41 +80,48 @@ class EsRestFrameworkTestCase(TestCase):
         self.assertTrue(isinstance(queryset, QuerySet))
         self.fake_view.action = 'list'
 
-    def test_filter_backend_filters(self):
+    def _test_filter_backend_filters(self):
         r = self.client.get('/tests/', {'username': '1'})
         self.assertEqual(r.data['count'], 1)
         self.assertEqual(r.data['results'][0]['id'], self.model1.id)
 
-    def test_pagination(self):
+    def test_filter_backend_filters(self):
+        self._test_filter_backend_filters()
+
+    def test_404(self):
+        r = self.client.get('/tests/354xyz/', {'username': '1'})
+        self.assertEqual(r.status_code, 404)
+
+    def _test_pagination(self):
         r = self.client.get('/tests/', {'ordering': '-id', 'page': 2, 'page_size':1})
         self.assertEqual(r.data['count'], 3)
         self.assertEqual(r.data['results'][0]['id'], self.model2.id)
 
+    def test_pagination(self):
+        self._test_pagination()
+
+    @withattrs(TestModel.Elasticsearch, 'facets_fields', ['first_name',])
     def test_facets(self):
-        TestModel.Elasticsearch.facets_fields = ['first_name',]
         filter_backend = ElasticsearchFilterBackend()
         s = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view)
         expected = {u'doc_count': 3,
                     u'first_name': {u'buckets': [{u'doc_count': 1,
                                                   u'key': u'test'}]}}
         self.assertEqual(s.facets, expected)
-        TestModel.Elasticsearch.facets_fields = None
 
+    @withattrs(TestModel.Elasticsearch, 'facets_fields', ['first_name',])
     def test_faceted_viewset(self):
-        TestModel.Elasticsearch.facets_fields = ['first_name',]
         r = self.client.get('/tests/', {'q': 'test'})
         self.assertTrue('facets' in r.data)
-        TestModel.Elasticsearch.facets_fields = None
 
+    @withattrs(TestModel.Elasticsearch, 'suggest_fields', ['first_name'])
     def test_suggestions_viewset(self):
-        TestModel.Elasticsearch.suggest_fields = ['first_name']
         r = self.client.get('/tests/', {'q': 'tset'})
         self.assertTrue('suggestions' in r.data)
         self.assertEqual(r.data['suggestions']['first_name'][0]['options'][0]['text'], "test")
-        TestModel.Elasticsearch.suggest_fields = None
 
+    @withattrs(TestModel.Elasticsearch, 'completion_fields', ['username'])
     def test_completion_viewset(self):
-        TestModel.Elasticsearch.completion_fields = ['username']
         # need to re-index :(
         TestModel.es.flush()
         TestModel.es.do_update()
@@ -119,11 +134,47 @@ class EsRestFrameworkTestCase(TestCase):
                                                      'q': 'woo'})
         # first_name is NOT in the completion_fields -> 404
         self.assertEqual(r.status_code, 404)
-        TestModel.Elasticsearch.completion_fields = None
 
-    @override_settings(ELASTICSEARCH_URL='http://dummy')
-    def test_fallback_gracefully(self):
-        # should fallback to a regular django queryset / filtering
-        r = self.client.get('/tests/')
+    def test_post_put_delete(self):
+        client = APIClient()
+
+        # make sure we don't break other methods
+        r = client.post('/tests/', {
+            'email': u'test@test.com',
+            'username': u'test',
+            'password': u'test'
+        })
+        id = TestModel.objects.latest('id').id
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)  # created
+
+        r = client.put('/tests/{0}/'.format(id), {
+            'username': u'test2',
+            'password': u'test'
+        }, format='json')
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.data['count'], 3)
+        self.assertEqual(TestModel.objects.get(pk=id).username, 'test2')
+
+        r = client.delete('/tests/{0}/'.format(id))
+        self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(TestModel.objects.filter(pk=id).exists())
+
+    def test_fallback_gracefully(self):
+        # Note: can't use override settings because of how restframework handle settings :(
+        #from django_elasticsearch.tests.urls import TestViewSet
+        from rest_framework.filters import DjangoFilterBackend, OrderingFilter
+        from rest_framework.settings import api_settings
+        api_settings.DEFAULT_FILTER_BACKENDS = (DjangoFilterBackend, OrderingFilter)
+        # TODO: better way to fake es cluster's death ?
+        with mock.patch('django_elasticsearch.client.es_client.search') as mock_search:
+            mock_search.side_effect = TransportError()
+            with mock.patch('django_elasticsearch.client.es_client.count') as mock_count:
+                mock_count.side_effect = TransportError()
+                with mock.patch('django_elasticsearch.client.es_client.get') as mock_get:
+                    mock_get.side_effect = TransportError()
+                    # should fallback to a regular django queryset / filtering
+                    r = self.client.get('/tests/')
+                    self.assertEqual(r.status_code, 200)
+                    self.assertTrue(r.data['filter_status'] == 'Failed')
+                    self.assertEqual(r.data['count'], 3)
+                    self._test_filter_backend_filters()
+                    self._test_pagination()
