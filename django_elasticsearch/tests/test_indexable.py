@@ -47,7 +47,7 @@ class EsIndexableTestCase(TestCase):
 
     def test_do_index(self):
         self.instance.es.do_index()
-        r = self.instance.es.deserialize(self.instance.es.get())
+        r = TestModel.es.deserialize(self.instance.es.get())
         self.assertTrue(isinstance(r, TestModel))
 
     def test_delete(self):

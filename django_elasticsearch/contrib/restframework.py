@@ -120,7 +120,7 @@ class IndexableModelMixin(object):
 
     def get_queryset(self):
         if self.action in ['list', 'retrieve'] and not self.es_failed:
-            return self.model.es.queryset
+            return self.model.es.search("")
         # db fallback
         return super(IndexableModelMixin, self).get_queryset()
 

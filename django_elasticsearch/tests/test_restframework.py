@@ -40,15 +40,15 @@ class EsRestFrameworkTestCase(TestCase):
         self.fake_request.GET = {api_settings.SEARCH_PARAM: 'test'}
         self.fake_view = Fake()
         self.fake_view.action = 'list'
-        self.queryset = TestModel.es.queryset.all()
 
     def tearDown(self):
         super(EsRestFrameworkTestCase, self).tearDown()
         es_client.indices.delete(index=TestModel.es.get_index())
 
     def _test_filter_backend(self):
+        queryset = TestModel.es.all()
         filter_backend = ElasticsearchFilterBackend()
-        queryset = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view)
+        queryset = filter_backend.filter_queryset(self.fake_request, queryset, self.fake_view)
 
         l = queryset.deserialize()
         self.assertTrue(self.model1 in l)
@@ -64,18 +64,20 @@ class EsRestFrameworkTestCase(TestCase):
             filter_backend.filter_queryset(self.fake_request, User.objects.all(), self.fake_view)
 
     def test_filter_backend_ordering(self):
+        queryset = TestModel.es.all()
         filter_backend = ElasticsearchFilterBackend()
         self.fake_view.ordering = ('-username',)
-        queryset = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view).deserialize()
+        queryset = filter_backend.filter_queryset(self.fake_request, queryset, self.fake_view).deserialize()
 
         self.assertEqual(queryset[0].id, self.model2.id)
         self.assertEqual(queryset[1].id, self.model1.id)
         del self.fake_view.ordering
 
     def test_filter_backend_no_list(self):
+        queryset = TestModel.es.all()
         filter_backend = ElasticsearchFilterBackend()
         self.fake_view.action = 'create'
-        queryset = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view)
+        queryset = filter_backend.filter_queryset(self.fake_request, queryset, self.fake_view)
         # the 'normal' dataflow continues
         self.assertTrue(isinstance(queryset, QuerySet))
         self.fake_view.action = 'list'
@@ -102,8 +104,9 @@ class EsRestFrameworkTestCase(TestCase):
 
     @withattrs(TestModel.Elasticsearch, 'facets_fields', ['first_name',])
     def test_facets(self):
+        queryset = TestModel.es.all()
         filter_backend = ElasticsearchFilterBackend()
-        s = filter_backend.filter_queryset(self.fake_request, self.queryset, self.fake_view)
+        s = filter_backend.filter_queryset(self.fake_request, queryset, self.fake_view)
         expected = {u'doc_count': 3,
                     u'first_name': {u'buckets': [{u'doc_count': 1,
                                                   u'key': u'test'}]}}

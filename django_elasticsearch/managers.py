@@ -73,36 +73,43 @@ class ElasticsearchManager():
         Returns a json object suitable for elasticsearch indexation.
         """
         # Note: by default, will use all the model's fields.
-        return (self.model.Elasticsearch.serializer_class(self.model)
-                                        .serialize(self.instance))
+        serializer = self.model.Elasticsearch.serializer_class(self.model)
+        return serializer.serialize(self.instance)
 
     def deserialize(self, source):
         """
         Create an instance of the Model from the elasticsearch source
+        or an EsQueryset
         Note: IMPORTANT: there is no certainty that the elasticsearch instance
         actually is synchronised with the db one.
         That is why the save() method is desactivated.
         """
-        obj = (self.model.Elasticsearch
-               .serializer_class(self.model)
-               .deserialize(source))
-        instance = self.model(**obj)
-        instance._is_es_deserialized = True
-        return instance
+        serializer = self.model.Elasticsearch.serializer_class(self.model)
+
+        def instanciate(e):
+            instance = self.model(**serializer.deserialize(e))
+            instance._is_es_deserialized = True
+            return instance
+
+        if isinstance(source, EsQueryset):
+            return [instanciate(e) for e in source]
+        else:
+            return instanciate(source)
 
     @needs_instance
     def do_index(self):
         json = self.serialize()
-        es_client.index(index=self.get_index(),
-                        doc_type=self.get_doc_type(),
+        es_client.index(index=self.index,
+                        doc_type=self.doc_type,
                         id=self.instance.id,
                         body=json)
 
     @needs_instance
     def delete(self):
-        es_client.delete(index=self.get_index(),
-                         doc_type=self.get_doc_type(),
-                         id=self.instance.id, ignore=404)
+        es_client.delete(index=self.index,
+                         doc_type=self.doc_type,
+                         id=self.instance.id,
+                         ignore=404)
 
     def get(self, **kwargs):
         if 'pk' in kwargs:
@@ -122,17 +129,49 @@ class ElasticsearchManager():
         """
         Returns documents that are 'like' this instance
         """
-        return es_client.mlt(index=self.get_index(),
-                             doc_type=self.get_doc_type(),
-                             id=self.instance.id, mlt_fields=fields)
+        return self.queryset.mlt(id=self.instance.id, fields=fields)
+
+    def count(self):
+        return self.queryset.count()
 
     @property
     def queryset(self):
         return EsQueryset(self.model)
 
-    def search(self, *args, **kwargs):
-        # proxy to EsQueryset
-        return self.queryset.search(*args, **kwargs)
+    def all(self):
+        """
+        Convenience method
+        """
+        return self.search("")
+
+    def search(self, query,
+               facets=None, facets_limit=None, global_facets=True,
+               suggest_fields=None, suggest_limit=None,
+               fuzziness=None):
+        """
+        Returns a EsQueryset instance that acts a bit like a django Queryset
+        facets is dictionnary containing facets informations
+        If global_facets is True,
+        the most used facets accross all documents will be returned.
+        if set to False, the facets will be filtered by the search query
+        """
+
+        q = self.queryset
+        q.fuzziness = fuzziness
+
+        if facets is None and self.model.Elasticsearch.facets_fields:
+            facets = self.model.Elasticsearch.facets_fields
+        if facets:
+            q.facet(facets,
+                    limit=facets_limit or self.model.Elasticsearch.facets_limit,
+                    use_globals=global_facets)
+
+        if suggest_fields is None and self.model.Elasticsearch.suggest_fields:
+            suggest_fields = self.model.Elasticsearch.suggest_fields
+        if suggest_fields:
+            q.suggest(fields=suggest_fields, limit=suggest_limit)
+
+        return q.search(query)
 
     def complete(self, field_name, query):
         """
@@ -144,23 +183,14 @@ class ElasticsearchManager():
                              .format(field_name))
 
         complete_name = "{0}_complete".format(field_name)
-        resp = es_client.suggest(index=self.get_index(),
-                                 body={complete_name: {
-                                     "text": query,
-                                     "completion": {
-                                         "field": complete_name,
-                                         # stick to fuzziness settings
-                                         "fuzzy" : {}
-                                     }}})
-
-        return [r['text'] for r in resp[complete_name][0]['options']]
+        return self.queryset.complete(complete_name, query)
 
     def do_update(self):
         """
         Hit this if you are in a hurry,
         the recently indexed items will be available right away.
         """
-        es_client.indices.refresh(index=self.get_index())
+        es_client.indices.refresh(index=self.index)
 
     def make_mapping(self):
         """
@@ -200,7 +230,7 @@ class ElasticsearchManager():
             mappings[complete_name] = {"type": "completion"}
 
         return {
-            self.get_doc_type(): {
+            self.doc_type: {
                 "properties": mappings
             }
         }
@@ -209,19 +239,18 @@ class ElasticsearchManager():
         """
         Debug convenience method.
         """
-        full_mapping = es_client.indices.get_mapping(index=self.get_index(),
-                                                     doc_type=self.get_doc_type())
+        full_mapping = es_client.indices.get_mapping(index=self.index,
+                                                     doc_type=self.doc_type)
 
-        # look what pep8 make me do
-        index = self.get_index()
-        doc_type = self.get_doc_type()
+        index = self.index
+        doc_type = self.doc_type
         return full_mapping[index]['mappings'][doc_type]['properties']
 
     def get_settings(self):
         """
         Debug convenience method.
         """
-        return es_client.indices.get_settings(index=self.get_index())
+        return es_client.indices.get_settings(index=self.index)
 
     @needs_instance
     def diff(self, source=None):
@@ -235,10 +264,11 @@ class ElasticsearchManager():
         if hasattr(settings, 'ELASTICSEARCH_SETTINGS'):
             body['settings'] = settings.ELASTICSEARCH_SETTINGS
 
-        es_client.indices.create(self.get_index(),
-                                 body=body, ignore=ignore and 400)
-        es_client.indices.put_mapping(index=self.get_index(),
-                                      doc_type=self.get_doc_type(),
+        es_client.indices.create(self.index,
+                                 body=body,
+                                 ignore=ignore and 400)
+        es_client.indices.put_mapping(index=self.index,
+                                      doc_type=self.doc_type,
                                       body=self.make_mapping())
 
     def reindex_all(self, queryset=None):
@@ -247,8 +277,8 @@ class ElasticsearchManager():
             instance.es.do_index()
 
     def flush(self):
-        es_client.indices.delete_mapping(index=self.get_index(),
-                                         doc_type=self.get_doc_type(),
+        es_client.indices.delete_mapping(index=self.index,
+                                         doc_type=self.doc_type,
                                          ignore=404)
         self.create_index()
         self.reindex_all()

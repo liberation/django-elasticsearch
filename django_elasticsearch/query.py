@@ -11,19 +11,24 @@ class EsQueryset(QuerySet):
     """
     def __init__(self, model, fuzziness=None):
         self.model = model
+        self.index = model.es.index
+        self.doc_type = model.es.doc_type
+
         self.facets_fields = None
         self.suggest_fields = None
+        self.fuzziness = fuzziness
+
         self._ordering = None  # default to 'score'
         self._ndx = None
         self._start = 0
         self._stop = None
         self._query = ''
         self._filters = []
+
         self._suggestions = None
         self._facets = None
         self._result_cache = []  # store
         self._total = None
-        self.fuzziness = fuzziness
 
     def __iter__(self):
         self.do_search()
@@ -77,8 +82,8 @@ class EsQueryset(QuerySet):
         if self._total:
             return self._total
         r = es_client.count(
-            index=self.model.es.get_index(),
-            doc_type=self.model.es.get_doc_type(),
+            index=self.index,
+            doc_type=self.doc_type,
             body=self._make_search_body() or None)
         self._total = r['count']
         return self._total
@@ -176,8 +181,8 @@ class EsQueryset(QuerySet):
             body['sort'] = self._ordering
 
         search_params = {
-            'index': self.model.es.get_index(),
-            'doc_type': self.model.es.get_doc_type()
+            'index': self.index,
+            'doc_type': self.doc_type
         }
         if self._start:
             search_params['from_'] = self._start
@@ -201,38 +206,13 @@ class EsQueryset(QuerySet):
 
         self._suggestions = r.get('suggest')
 
-        # self.model.es.deserialize(
         self._result_cache = [e['_source'] for e in r['hits']['hits']]
         self._max_score = r['hits']['max_score']
         self._total = r['hits']['total']
         return self
 
-    def search(self, query,
-               facets=None, facets_limit=None, global_facets=True,
-               suggest_fields=None, suggest_limit=None, fuzziness=None):
-        """
-        Returns a EsQueryset instance that acts a bit like a django Queryset
-        facets is dictionnary containing facets informations
-        If global_facets is True,
-        the most used facets accross all documents will be returned.
-        if set to False, the facets will be filtered by the search query
-        """
+    def search(self, query):
         self.query(query)
-        self.fuzziness = fuzziness
-
-        if facets is None and self.model.Elasticsearch.facets_fields:
-            facets = self.model.Elasticsearch.facets_fields
-
-        if facets:
-            self.facet(facets,
-                       limit=facets_limit or self.model.Elasticsearch.facets_limit,
-                       use_globals=global_facets)
-
-        if suggest_fields is None and self.model.Elasticsearch.suggest_fields:
-            suggest_fields = self.model.Elasticsearch.suggest_fields
-        if suggest_fields:
-            self.suggest(fields=suggest_fields, limit=suggest_limit)
-
         return self
 
     def facet(self, fields, limit=None, use_globals=True):
@@ -280,17 +260,35 @@ class EsQueryset(QuerySet):
     def get(self, **kwargs):
         pk = kwargs.pop('pk', None) or kwargs.pop('id', None)
 
-        r = es_client.get(index=self.model.es.get_index(),
-                          doc_type=self.model.es.get_doc_type(),
+        r = es_client.get(index=self.index,
+                          doc_type=self.doc_type,
                           id=pk)
         self._response = r
         return r['_source']
 
-    def deserialize(self):
-        """
-        Transform the queryset contents to the corresponding django model instances
-        """
-        return [self.model.es.deserialize(e) for e in self]
+    def mlt(self, id, fields=[]):
+        r = es_client.mlt(index=self.index,
+                          doc_type=self.doc_type,
+                          id=id,
+                          mlt_fields=fields)
+
+        self._response = r
+        self._result_cache = [e['_source'] for e in r['hits']['hits']]
+        self._max_score = r['hits']['max_score']
+        self._total = r['hits']['total']
+        return self
+
+    def complete(self, field_name, query):
+        resp = es_client.suggest(index=self.index,
+                                 body={field_name: {
+                                     "text": query,
+                                     "completion": {
+                                         "field": field_name,
+                                         # stick to fuzziness settings
+                                         "fuzzy" : {}
+                                     }}})
+
+        return [r['text'] for r in resp[field_name][0]['options']]
 
     def update(self):
         raise NotImplementedError("Db operational methods have been "
@@ -312,3 +310,6 @@ class EsQueryset(QuerySet):
 
     def count(self):
         return self.__len__()
+
+    def deserialize(self):
+        return self.model.es.deserialize(self)
