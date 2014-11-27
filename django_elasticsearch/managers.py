@@ -20,7 +20,8 @@ ELASTICSEARCH_FIELD_MAP = {
     u'IntegerField': 'long',
     u'PositiveIntegerField': 'long',
     u'PositiveSmallIntegerField': 'short',
-    u'SmallIntegerField': 'short'
+    u'SmallIntegerField': 'short',
+    u'ForeignKey': 'object'
 }
 
 
@@ -242,9 +243,7 @@ class ElasticsearchManager():
         full_mapping = es_client.indices.get_mapping(index=self.index,
                                                      doc_type=self.doc_type)
 
-        index = self.index
-        doc_type = self.doc_type
-        return full_mapping[index]['mappings'][doc_type]['properties']
+        return full_mapping[self.index]['mappings'][self.doc_type]['properties']
 
     def get_settings(self):
         """

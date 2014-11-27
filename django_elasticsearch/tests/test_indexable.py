@@ -165,6 +165,9 @@ class EsIndexableTestCase(TestCase):
 
     def test_reevaluate(self):
         # test that the request is resent if something changed filters, ordering, ndx
+        TestModel.es.flush()
+        TestModel.es.do_update()
+
         q = TestModel.es.search('woot')
         self.assertTrue(self.instance in q.deserialize())  # evaluate
         q = q.filter(last_name='grut')

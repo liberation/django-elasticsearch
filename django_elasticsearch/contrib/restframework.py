@@ -42,6 +42,7 @@ class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
             filters = dict([(k, v)
                             for k, v in request.GET.iteritems()
                             if k in filterable])
+
             q = queryset.search(query).filter(**filters)
             if ordering:
                 q.order_by(*ordering)

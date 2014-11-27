@@ -3,6 +3,7 @@ from django.db.models.query import QuerySet
 from django.db.models.query import REPR_OUTPUT_SIZE
 
 from django_elasticsearch.client import es_client
+from django_elasticsearch.utils import nested_update
 
 
 class EsQueryset(QuerySet):
@@ -122,21 +123,24 @@ class EsQueryset(QuerySet):
                         # this is also django's default lookup type
                         operator = 'exact'
 
+                    mapping = self.model.es.get_mapping()
+
+                    is_nested = 'properties' in mapping[field]
+                    field_name = is_nested and field + ".id" or field
+
                     if operator == 'exact':
-                        if 'bool' not in search['filter']:
-                            search['filter']['bool'] = {'must': {'term': {}}}
-                        search['filter']['bool']['must']['term'][field] = value
+                        filter = {'bool': {'must': [{'term': {field_name: value}}]}}
                     elif operator in ['gt', 'gte', 'lt', 'lte']:
-                        if 'range' not in search['filter']:
-                            search['filter']['range'] = {field: {}}
-                        search['filter']['range'][field][operator] = value
+                        filter = {'range': {field_name: {operator: value}}}
                     elif operator == 'range':
-                        if 'range' not in search['filter']:
-                            search['filter']['range'] = {field: {}}
-                        search['filter']['range'][field]['gte'] = value[0]
-                        search['filter']['range'][field]['lte'] = value[1]
+                        filter = {'range': {field_name: {
+                            'gte': value[0],
+                            'lte': value[1]
+                        }}}
                     else:
                         raise NotImplementedError("{0} is not a valid filter lookup type.".format(operator))
+
+                    nested_update(search['filter'], filter)
 
             body['query'] = {'filtered': search}
         else:
@@ -191,9 +195,8 @@ class EsQueryset(QuerySet):
 
         search_params['body'] = body
 
-        r = es_client.search(**search_params)
-
         self._body = body
+        r = es_client.search(**search_params)
         self._response = r
         if self.facets_fields:
             if self.global_facets:

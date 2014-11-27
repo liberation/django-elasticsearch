@@ -121,6 +121,14 @@ class EsQuerysetTestCase(TestCase):
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 not in contents)
 
+    def test_multiple_filter(self):
+        qs = TestModel.es.queryset.filter(last_name=u"Smith", first_name=u"jack")
+        contents = qs.deserialize()
+        self.assertTrue(self.t1 not in contents)
+        self.assertTrue(self.t2 in contents)
+        self.assertTrue(self.t3 not in contents)
+        self.assertTrue(self.t4 not in contents)
+
     def test_filter_range(self):
         qs = TestModel.es.queryset.filter(id__gt=self.t2.id)
         contents = qs.deserialize()
