@@ -8,3 +8,4 @@ class TestModel(User, EsIndexable):
 
     class Meta:
         proxy = True
+        ordering = ('id',)

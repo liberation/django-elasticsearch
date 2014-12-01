@@ -19,7 +19,7 @@ class EsQueryset(QuerySet):
         self.suggest_fields = None
         self.fuzziness = fuzziness
 
-        self._ordering = None  # default to 'score'
+        self._ordering = getattr(self.model._meta, 'ordering', None)  # defaults to 'score'
         self._ndx = None
         self._start = 0
         self._stop = None
@@ -182,7 +182,8 @@ class EsQueryset(QuerySet):
             body['suggest'] = suggest
 
         if self._ordering:
-            body['sort'] = self._ordering
+            body['sort'] = [{f: "asc"} if f[0] != '-' else {f[1:]: "desc"}
+                            for f in self._ordering] + ["_score"]
 
         search_params = {
             'index': self.index,
@@ -241,8 +242,7 @@ class EsQueryset(QuerySet):
         if self.is_evaluated:
             # empty the result cache
             self._result_cache = []
-        self._ordering = [{f: "asc"} if f[0] != '-' else {f[1:]: "desc"}
-                          for f in fields] + ["_score"]
+        self._ordering = fields
         return self
 
     def filter(self, **kwargs):

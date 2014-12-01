@@ -113,6 +113,11 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(contents[2], self.t2)
         self.assertEqual(contents[3], self.t1)
 
+    def test_default_ordering(self):
+        qs = TestModel.objects.all()
+        qes = TestModel.es.all().deserialize()
+        self.assertEqual(list(qs), list(qes))
+
     def test_filtering(self):
         qs = TestModel.es.queryset.filter(last_name=u"Smith")
         contents = qs.deserialize()
