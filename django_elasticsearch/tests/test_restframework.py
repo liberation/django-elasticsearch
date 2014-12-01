@@ -83,7 +83,7 @@ class EsRestFrameworkTestCase(TestCase):
         self.fake_view.action = 'list'
 
     def _test_filter_backend_filters(self):
-        r = self.client.get('/tests/', {'username': '1'})
+        r = self.client.get('/rf/tests/', {'username': '1'})
         self.assertEqual(r.data['count'], 1)
         self.assertEqual(r.data['results'][0]['id'], self.model1.id)
 
@@ -91,11 +91,11 @@ class EsRestFrameworkTestCase(TestCase):
         self._test_filter_backend_filters()
 
     def test_404(self):
-        r = self.client.get('/tests/354xyz/', {'username': '1'})
+        r = self.client.get('/rf/tests/354xyz/', {'username': '1'})
         self.assertEqual(r.status_code, 404)
 
     def _test_pagination(self):
-        r = self.client.get('/tests/', {'ordering': '-id', 'page': 2, 'page_size':1})
+        r = self.client.get('/rf/tests/', {'ordering': '-id', 'page': 2, 'page_size':1})
         self.assertEqual(r.data['count'], 3)
         self.assertEqual(r.data['results'][0]['id'], self.model2.id)
 
@@ -114,12 +114,12 @@ class EsRestFrameworkTestCase(TestCase):
 
     @withattrs(TestModel.Elasticsearch, 'facets_fields', ['first_name',])
     def test_faceted_viewset(self):
-        r = self.client.get('/tests/', {'q': 'test'})
+        r = self.client.get('/rf/tests/', {'q': 'test'})
         self.assertTrue('facets' in r.data)
 
     @withattrs(TestModel.Elasticsearch, 'suggest_fields', ['first_name'])
     def test_suggestions_viewset(self):
-        r = self.client.get('/tests/', {'q': 'tset'})
+        r = self.client.get('/rf/tests/', {'q': 'tset'})
         self.assertTrue('suggestions' in r.data)
         self.assertEqual(r.data['suggestions']['first_name'][0]['options'][0]['text'], "test")
 
@@ -129,11 +129,11 @@ class EsRestFrameworkTestCase(TestCase):
         TestModel.es.flush()
         TestModel.es.do_update()
 
-        r = self.client.get('/tests/autocomplete/', {'f': 'username',
+        r = self.client.get('/rf/tests/autocomplete/', {'f': 'username',
                                                      'q': 'what'})
         self.assertTrue('whatever' in r.data)
 
-        r = self.client.get('/tests/autocomplete/', {'f': 'first_name',
+        r = self.client.get('/rf/tests/autocomplete/', {'f': 'first_name',
                                                      'q': 'woo'})
         # first_name is NOT in the completion_fields -> 404
         self.assertEqual(r.status_code, 404)
@@ -142,7 +142,7 @@ class EsRestFrameworkTestCase(TestCase):
         client = APIClient()
 
         # make sure we don't break other methods
-        r = client.post('/tests/', {
+        r = client.post('/rf/tests/', {
             'email': u'test@test.com',
             'username': u'test',
             'password': u'test'
@@ -150,14 +150,14 @@ class EsRestFrameworkTestCase(TestCase):
         id = TestModel.objects.latest('id').id
         self.assertEqual(r.status_code, status.HTTP_201_CREATED)  # created
 
-        r = client.put('/tests/{0}/'.format(id), {
+        r = client.put('/rf/tests/{0}/'.format(id), {
             'username': u'test2',
             'password': u'test'
         }, format='json')
         self.assertEqual(r.status_code, 200)
         self.assertEqual(TestModel.objects.get(pk=id).username, 'test2')
 
-        r = client.delete('/tests/{0}/'.format(id))
+        r = client.delete('/rf/tests/{0}/'.format(id))
         self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(TestModel.objects.filter(pk=id).exists())
 
@@ -175,7 +175,7 @@ class EsRestFrameworkTestCase(TestCase):
                 with mock.patch('django_elasticsearch.client.es_client.get') as mock_get:
                     mock_get.side_effect = TransportError()
                     # should fallback to a regular django queryset / filtering
-                    r = self.client.get('/tests/')
+                    r = self.client.get('/rf/tests/')
                     self.assertEqual(r.status_code, 200)
                     self.assertTrue(r.data['filter_status'] == 'Failed')
                     self.assertEqual(r.data['count'], 3)

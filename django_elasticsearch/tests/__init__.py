@@ -3,6 +3,7 @@ from unittest import TestLoader
 from unittest import TestCase
 
 from django_elasticsearch.tests.models import TestModel
+from django_elasticsearch.tests.test_views import EsViewTestCase
 from django_elasticsearch.tests.test_qs import EsQuerysetTestCase
 from django_elasticsearch.tests.test_indexable import EsIndexableTestCase
 
@@ -27,9 +28,11 @@ def suite():
     suite = TestSuite()
     loader = TestLoader()
 
-    test_cases = [EsQuerysetTestCase,
-                  EsIndexableTestCase,
-                  EsRestFrameworkTestCase]
+    test_cases = [
+        EsViewTestCase,
+        EsQuerysetTestCase,
+        EsIndexableTestCase,
+        EsRestFrameworkTestCase]
 
     if not TestModel.es.check_cluster():
         print "Test skipped. Could not connect to elasticsearch."

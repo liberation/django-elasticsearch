@@ -24,7 +24,7 @@ class EsQueryset(QuerySet):
         self._start = 0
         self._stop = None
         self._query = ''
-        self._filters = []
+        self._filters = {}
 
         self._suggestions = None
         self._facets = None
@@ -111,36 +111,36 @@ class EsQueryset(QuerySet):
         if self._filters:
             # TODO: should we add _cache = true ?!
             search['filter'] = {}
-            for f in self._filters:
-                for field, value in f.items():
-                    try:
-                        value = value.lower()
-                    except AttributeError:
-                        pass
-                    try:
-                        field, operator = field.split('__')
-                    except ValueError:  # could not split
-                        # this is also django's default lookup type
-                        operator = 'exact'
 
-                    mapping = self.model.es.get_mapping()
+            for field, value in self._filters.items():
+                try:
+                    value = value.lower()
+                except AttributeError:
+                    pass
+                try:
+                    field, operator = field.split('__')
+                except ValueError:  # could not split
+                    # this is also django's default lookup type
+                    operator = 'exact'
 
-                    is_nested = 'properties' in mapping[field]
-                    field_name = is_nested and field + ".id" or field
+                mapping = self.model.es.get_mapping()
 
-                    if operator == 'exact':
-                        filter = {'bool': {'must': [{'term': {field_name: value}}]}}
-                    elif operator in ['gt', 'gte', 'lt', 'lte']:
-                        filter = {'range': {field_name: {operator: value}}}
-                    elif operator == 'range':
-                        filter = {'range': {field_name: {
-                            'gte': value[0],
-                            'lte': value[1]
-                        }}}
-                    else:
-                        raise NotImplementedError("{0} is not a valid filter lookup type.".format(operator))
+                is_nested = 'properties' in mapping[field]
+                field_name = is_nested and field + ".id" or field
 
-                    nested_update(search['filter'], filter)
+                if operator == 'exact':
+                    filtr = {'bool': {'must': [{'term': {field_name: value}}]}}
+                elif operator in ['gt', 'gte', 'lt', 'lte']:
+                    filtr = {'range': {field_name: {operator: value}}}
+                elif operator == 'range':
+                    filtr = {'range': {field_name: {
+                        'gte': value[0],
+                        'lte': value[1]
+                    }}}
+                else:
+                    raise NotImplementedError("{0} is not a valid filter lookup type.".format(operator))
+
+                nested_update(search['filter'], filtr)
 
             body['query'] = {'filtered': search}
         else:
@@ -151,6 +151,13 @@ class EsQueryset(QuerySet):
     @property
     def is_evaluated(self):
         return bool(self._result_cache)
+
+    @property
+    def response(self):
+        if not self.is_evaluated:
+            raise AttributeError(u"EsQueryset must be evaluated before accessing elasticsearch's response.")
+        else:
+            return self._response
 
     def do_search(self, extra_body=None):
         if self.is_evaluated:
@@ -198,6 +205,7 @@ class EsQueryset(QuerySet):
 
         self._body = body
         r = es_client.search(**search_params)
+
         self._response = r
         if self.facets_fields:
             if self.global_facets:
@@ -249,7 +257,7 @@ class EsQueryset(QuerySet):
         if self.is_evaluated:
             # empty the result cache
             self._result_cache = []
-        self._filters.append(kwargs)
+        self._filters.update(kwargs)
         return self
 
     def exclude(self, **kwargs):
@@ -261,7 +269,14 @@ class EsQueryset(QuerySet):
         return self
 
     def get(self, **kwargs):
-        pk = kwargs.pop('pk', None) or kwargs.pop('id', None)
+        pk = kwargs.get('pk', None) or kwargs.get('id', None)
+
+        if pk is None:
+            # maybe it's in a filter, like in django.views.generic.detail
+            pk = self._filters.get('pk', None) or self._filters.get('id', None)
+
+        if pk is None:
+            raise AttributeError("EsQueryset.get needs to get passed a 'pk' or 'id' parameter.")
 
         r = es_client.get(index=self.index,
                           doc_type=self.doc_type,
