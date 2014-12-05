@@ -171,3 +171,15 @@ class EsIndexableTestCase(TestCase):
         self.assertTrue(self.instance in q.deserialize())  # evaluate
         q = q.filter(last_name='grut')
         self.assertFalse(self.instance in q.deserialize())  # evaluate
+
+    def test_diff(self):
+        self.assertEqual(self.instance.es.diff(), {})
+        self.instance.first_name = 'pouet'
+
+        expected = {
+            u'first_name': {
+            'es': u'woot',
+            'db': u'pouet'
+            }
+        }
+        self.assertEqual(self.instance.es.diff(), expected)

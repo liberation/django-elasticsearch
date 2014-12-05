@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import json
+
 from django.conf import settings
 from django.db.models import FieldDoesNotExist
 
@@ -205,15 +207,18 @@ class ElasticsearchManager():
         """
         es_client.indices.refresh(index=self.index)
 
+    def get_fields(self):
+        model_fields = [f.name for f in self.model._meta.fields]
+        fields = self.model.Elasticsearch.fields or model_fields
+        return fields
+
     def make_mapping(self):
         """
         Create the model's es mapping on the fly
         """
         mappings = {}
 
-        model_fields = [f.name for f in self.model._meta.fields]
-        fields = self.model.Elasticsearch.fields or model_fields
-        for field_name in fields:
+        for field_name in self.get_fields():
             try:
                 field = self.model._meta.get_field(field_name)
             except FieldDoesNotExist:
@@ -268,7 +273,21 @@ class ElasticsearchManager():
         """
         Returns a nice diff between the db and es.
         """
-        raise NotImplementedError
+        a = self.get()
+        if getattr(self.instance, '_is_es_deserialized', False):
+            # we need to fetch it from db
+            b = json.loads(self.model.objects.get(pk=self.instance.pk))
+        else:
+            b = json.loads(self.instance.es.serialize())  # db value
+
+        # we are only interested in indexed fields
+        diff = {}
+        for field_name in self.get_fields():
+            if a[field_name] != b[field_name]:
+                diff[field_name] = {'es': a[field_name],
+                                    'db': b[field_name]}
+
+        return diff
 
     def create_index(self, ignore=True):
         body = {}

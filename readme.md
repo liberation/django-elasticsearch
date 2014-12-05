@@ -216,6 +216,5 @@ To test with a older version of django, simply install it with, for example, ```
 TODO
 ====
 
-* implement ```es.diff```
 * up the test coverage (84%)
-* docstrings
+* advanced docs / docstrings
