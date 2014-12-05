@@ -1,9 +1,10 @@
+import json
+
 from django.http import Http404
 from django.http import HttpResponse
 from django.views.generic import View
 from django.views.generic.list import BaseListView
 from django.views.generic.detail import BaseDetailView
-from django.utils import simplejson as json
 from django.core import serializers
 
 from elasticsearch import NotFoundError

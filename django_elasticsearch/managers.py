@@ -35,7 +35,8 @@ def needs_instance(f):
 
 class ElasticsearchManager():
     """
-    Note: This is not strictly a django model Manager.
+    Note: This is not strictly a django model Manager !
+    most of those methods don't return a Queryset.
     """
 
     def __init__(self, k):
@@ -126,11 +127,22 @@ class ElasticsearchManager():
         return self.queryset.get(id=pk)
 
     @needs_instance
-    def mlt(self, fields=[]):
+    def mlt(self, **kwargs):
         """
         Returns documents that are 'like' this instance
+        You may have to toy with parameters in case of a low document count:
+        min_term_freq, min_doc_freq, and percent_terms_to_match
+
+        See es_client.mlt for all available kwargs
+        :arg index: The name of the index * defaults to self.index *
+        :arg doc_type: The type of the document (use `_all` to fetch the first
+                       document matching the ID across all types)
+                       * Defaults to self.doc_type *
+        :arg include: Whether to include the queried document from the response
+                      * defaults to False *
+        :arg mlt_fields: Specific fields to perform the query against
         """
-        return self.queryset.mlt(id=self.instance.id, fields=fields)
+        return self.queryset.mlt(id=self.instance.id, **kwargs)
 
     def count(self):
         return self.queryset.count()

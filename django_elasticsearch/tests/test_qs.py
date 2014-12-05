@@ -53,7 +53,7 @@ class EsQuerysetTestCase(TestCase):
         # if the cache store is not hit
         fake_body = {'query': {'match': {'_all': 'foo'}}}
         with mock.patch.object(EsQueryset,
-                               '_make_search_body') as mocked:
+                               'make_search_body') as mocked:
             mocked.return_value = fake_body
             qs = TestModel.es.search("")
             # eval
@@ -64,7 +64,7 @@ class EsQuerysetTestCase(TestCase):
 
         # same for a sliced query
         with mock.patch.object(EsQueryset,
-                               '_make_search_body') as mocked:
+                               'make_search_body') as mocked:
             mocked.return_value = fake_body
             # re-eval
             list(qs[0:5])

@@ -216,11 +216,6 @@ To test with a older version of django, simply install it with, for example, ```
 TODO
 ====
 
-* fix ```es.mlt```
 * implement ```es.diff```
-* implement ```es.raw```
-* understand why the `freq` attribute in ```tests.qs.EsQuerysetTestCase.test_suggestions``` is 6 when there is only 3 hits.
 * up the test coverage (84%)
 * docstrings
-* make EsQueryset API closer to django Queryset
-* moar Pep8 ;)

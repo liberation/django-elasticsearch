@@ -10,22 +10,29 @@ class EsQueryset(QuerySet):
     """
     Fake Queryset that is supposed to act somewhat like a django Queryset.
     """
+    MODE_SEARCH = 1
+    MODE_MLT = 2
+
     def __init__(self, model, fuzziness=None):
         self.model = model
         self.index = model.es.index
         self.doc_type = model.es.doc_type
 
+        # config
+        self.mode = self.MODE_SEARCH
+        self.mlt_kwargs = None
+        self.filters = {}
         self.facets_fields = None
         self.suggest_fields = None
+        self.ordering = getattr(self.model._meta, 'ordering', None)  # defaults to 'score'
         self.fuzziness = fuzziness
+        self.ndx = None
+        self._query = ''
 
-        self._ordering = getattr(self.model._meta, 'ordering', None)  # defaults to 'score'
-        self._ndx = None
         self._start = 0
         self._stop = None
-        self._query = ''
-        self._filters = {}
 
+        # results
         self._suggestions = None
         self._facets = None
         self._result_cache = []  # store
@@ -43,13 +50,13 @@ class EsQueryset(QuerySet):
         return repr(data)
 
     def __getitem__(self, ndx):
-        if ndx != self._ndx:
+        if ndx != self.ndx:
             self._result_cache = []
 
         if self.is_evaluated:
             return self._result_cache
 
-        self._ndx = ndx
+        self.ndx = ndx
 
         if type(ndx) is slice:
             self._start = ndx.start or 0  # in case it is None because [:X]
@@ -85,11 +92,11 @@ class EsQueryset(QuerySet):
         r = es_client.count(
             index=self.index,
             doc_type=self.doc_type,
-            body=self._make_search_body() or None)
+            body=self.make_search_body() or None)
         self._total = r['count']
         return self._total
 
-    def _make_search_body(self):
+    def make_search_body(self):
         body = {}
         search = {}
 
@@ -108,11 +115,11 @@ class EsQueryset(QuerySet):
                 },
             }
 
-        if self._filters:
+        if self.filters:
             # TODO: should we add _cache = true ?!
             search['filter'] = {}
 
-            for field, value in self._filters.items():
+            for field, value in self.filters.items():
                 try:
                     value = value.lower()
                 except AttributeError:
@@ -163,7 +170,7 @@ class EsQueryset(QuerySet):
         if self.is_evaluated:
             return self._result_cache
 
-        body = self._make_search_body()
+        body = self.make_search_body()
 
         if self.facets_fields:
             aggs = dict([
@@ -188,23 +195,35 @@ class EsQueryset(QuerySet):
                     suggest[field_name]["text"]["term"]["size"] = self.suggest_limit
             body['suggest'] = suggest
 
-        if self._ordering:
+        if self.ordering:
             body['sort'] = [{f: "asc"} if f[0] != '-' else {f[1:]: "desc"}
-                            for f in self._ordering] + ["_score"]
+                            for f in self.ordering] + ["_score"]
 
         search_params = {
             'index': self.index,
             'doc_type': self.doc_type
         }
         if self._start:
-            search_params['from_'] = self._start
+            search_params['from'] = self._start
         if self._stop:
             search_params['size'] = self._stop - self._start
 
         search_params['body'] = body
-
         self._body = body
-        r = es_client.search(**search_params)
+
+        if self.mode == self.MODE_MLT:
+            # change include's defaults to False
+            # search_params['include'] = self.mlt_kwargs.pop('include', False)
+            # update search params names
+            for param in ['type', 'indices', 'types', 'scroll', 'size', 'from']:
+                if param in search_params:
+                    search_params['search_{0}'.format(param)] = search_params.pop(param)
+            search_params.update(self.mlt_kwargs)
+            r = es_client.mlt(**search_params)
+        else:
+            if 'from' in search_params:
+                search_params['from_'] = search_params.pop('from')
+            r = es_client.search(**search_params)
 
         self._response = r
         if self.facets_fields:
@@ -217,7 +236,6 @@ class EsQueryset(QuerySet):
                 self._facets = r['aggregations']
 
         self._suggestions = r.get('suggest')
-
         self._result_cache = [e['_source'] for e in r['hits']['hits']]
         self._max_score = r['hits']['max_score']
         self._total = r['hits']['total']
@@ -250,14 +268,14 @@ class EsQueryset(QuerySet):
         if self.is_evaluated:
             # empty the result cache
             self._result_cache = []
-        self._ordering = fields
+        self.ordering = fields
         return self
 
     def filter(self, **kwargs):
         if self.is_evaluated:
             # empty the result cache
             self._result_cache = []
-        self._filters.update(kwargs)
+        self.filters.update(kwargs)
         return self
 
     def exclude(self, **kwargs):
@@ -273,7 +291,7 @@ class EsQueryset(QuerySet):
 
         if pk is None:
             # maybe it's in a filter, like in django.views.generic.detail
-            pk = self._filters.get('pk', None) or self._filters.get('id', None)
+            pk = self.filters.get('pk', None) or self.filters.get('id', None)
 
         if pk is None:
             raise AttributeError("EsQueryset.get needs to get passed a 'pk' or 'id' parameter.")
@@ -284,16 +302,10 @@ class EsQueryset(QuerySet):
         self._response = r
         return r['_source']
 
-    def mlt(self, id, fields=[]):
-        r = es_client.mlt(index=self.index,
-                          doc_type=self.doc_type,
-                          id=id,
-                          mlt_fields=fields)
-
-        self._response = r
-        self._result_cache = [e['_source'] for e in r['hits']['hits']]
-        self._max_score = r['hits']['max_score']
-        self._total = r['hits']['total']
+    def mlt(self, id, **kwargs):
+        self.mode = self.MODE_MLT
+        self.mlt_kwargs = kwargs
+        self.mlt_kwargs['id'] = id
         return self
 
     def complete(self, field_name, query):

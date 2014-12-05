@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from unittest import SkipTest
-
 from elasticsearch import NotFoundError
 
 from django.test import TestCase
@@ -55,17 +53,18 @@ class EsIndexableTestCase(TestCase):
         with self.assertRaises(NotFoundError):
             self.instance.es.get()
 
-    # TODO: this test fails, i don't know why
-    @SkipTest
     def test_mlt(self):
-        results = self.instance.es.mlt(fields=['first_name',])
-        self.assertEqual(results['hits']['total'], 0)
+        q = self.instance.es.mlt(mlt_fields=['first_name',], min_term_freq=1, min_doc_freq=1)
+        results = q.deserialize()
 
+        self.assertEqual(len(results), 0)
         a = TestModel.objects.create(username=u"2", first_name=u"woot", last_name=u"foo fooo")
         a.es.do_index()
         a.es.do_update()
-        results = self.instance.es.mlt(fields=['first_name',])
-        self.assertEqual(results['hits']['total'], 1)
+
+        results = self.instance.es.mlt(mlt_fields=['first_name',], min_term_freq=1, min_doc_freq=1).deserialize()
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0], a)
 
     def test_search(self):
         hits = TestModel.es.search('wee')
