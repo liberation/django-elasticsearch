@@ -138,7 +138,7 @@ class EsIndexableTestCase(TestCase):
         TestModel.es.do_update()
 
         expected = {
-            'username': {'type': 'string'},
+            'username': {u'index': u'not_analyzed', u'type': u'string'},
             'date_joined': {u'type': u'date', u'format': u'dateOptionalTime'}
         }
 

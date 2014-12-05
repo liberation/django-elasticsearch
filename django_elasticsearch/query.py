@@ -137,6 +137,12 @@ class EsQueryset(QuerySet):
 
                 if operator == 'exact':
                     filtr = {'bool': {'must': [{'term': {field_name: value}}]}}
+                elif operator == 'not':
+                    filtr = {'bool': {'must_not': [{'term': {field_name: value}}]}}
+                elif operator in ['should', 'should_not']:
+                    filtr = {'bool': {operator: [{'term': {field_name: value}}]}}
+                elif operator == 'contains':
+                    filtr = {'query': {'match': {field_name: {'query': value}}}}
                 elif operator in ['gt', 'gte', 'lt', 'lte']:
                     filtr = {'range': {field_name: {operator: value}}}
                 elif operator == 'range':
@@ -279,7 +285,33 @@ class EsQueryset(QuerySet):
         return self
 
     def exclude(self, **kwargs):
-        raise NotImplementedError
+        if self.is_evaluated:
+            # empty the result cache
+            self._result_cache = []
+
+        filters = {}
+        # TODO: not __contains, not __range
+        for field, value in kwargs.items():
+            try:
+                field, operator = field.split('__')
+            except ValueError:  # could not split
+                # this is also django's default lookup type
+                operator = 'exact'
+
+            if operator == 'exact':
+                filters['{0}__not'.format(field)] = value
+            elif operator == 'not':
+                filters[field] = value
+            elif operator == 'should':
+                filters['{0}__should_not'.format(field)] = value
+            elif operator in ['gt', 'gte', 'lt', 'lte']:
+                inverse_map = {'gt': 'lte', 'gte': 'lt', 'lt': 'gte', 'lte': 'gt'}
+                filters['{0}__{1}'.format(field, inverse_map[operator])] = value
+            else:
+                raise NotImplementedError("{0} is not a valid *exclude* lookup type.".format(operator))
+
+        self.filters.update(filters)
+        return self
 
     ## getters
     def all(self):

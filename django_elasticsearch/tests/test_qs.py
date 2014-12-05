@@ -5,6 +5,7 @@ from django.test.utils import override_settings
 
 from django_elasticsearch.client import es_client
 from django_elasticsearch.managers import EsQueryset
+from django_elasticsearch.tests.utils import withattrs
 from django_elasticsearch.tests.models import TestModel
 
 
@@ -17,7 +18,7 @@ class EsQuerysetTestCase(TestCase):
         # create a bunch of documents
         TestModel.es.create_index(ignore=True)
 
-        self.t1 = TestModel.objects.create(username=u"woot2", first_name=u"John", last_name=u"Smith")
+        self.t1 = TestModel.objects.create(username=u"woot woot", first_name=u"John", last_name=u"Smith")
         self.t1.es.do_index()
 
         self.t2 = TestModel.objects.create(username=u"woot", first_name=u"Jack", last_name=u"Smith")
@@ -179,4 +180,58 @@ class EsQuerysetTestCase(TestCase):
         self.assertTrue(self.t4 in contents)
 
     def test_excluding(self):
-        pass
+        qs = TestModel.es.queryset.exclude(username=u"woot")
+        contents = qs.deserialize()
+        self.assertTrue(self.t1 in contents)
+        self.assertTrue(self.t2 not in contents)
+        self.assertTrue(self.t3 in contents)
+        self.assertTrue(self.t4 in contents)
+
+    def test_excluding_lookups(self):
+        qs = TestModel.es.queryset.exclude(id__gt=self.t2.id)
+        contents = qs.deserialize()
+        self.assertTrue(self.t1 in contents)
+        self.assertTrue(self.t2 in contents)
+        self.assertTrue(self.t3 not in contents)
+        self.assertTrue(self.t4 not in contents)
+
+        qs = TestModel.es.queryset.exclude(id__lt=self.t2.id)
+        contents = qs.deserialize()
+        self.assertTrue(self.t1 not in contents)
+        self.assertTrue(self.t2 in contents)
+        self.assertTrue(self.t3 in contents)
+        self.assertTrue(self.t4 in contents)
+
+        qs = TestModel.es.queryset.exclude(id__gte=self.t2.id)
+        contents = qs.deserialize()
+        self.assertTrue(self.t1 in contents)
+        self.assertTrue(self.t2 not in contents)
+        self.assertTrue(self.t3 not in contents)
+        self.assertTrue(self.t4 not in contents)
+
+        qs = TestModel.es.queryset.exclude(id__lte=self.t2.id)
+        contents = qs.deserialize()
+        self.assertTrue(self.t1 not in contents)
+        self.assertTrue(self.t2 not in contents)
+        self.assertTrue(self.t3 in contents)
+        self.assertTrue(self.t4 in contents)
+
+    def test_chain_filter_exclude(self):
+        qs = TestModel.es.queryset.filter(last_name=u"Smith").exclude(username=u"woot")
+        contents = qs.deserialize()
+        self.assertTrue(self.t1 in contents)
+        self.assertTrue(self.t2 not in contents)  # excluded
+        self.assertTrue(self.t3 in contents)
+        self.assertTrue(self.t4 not in contents)  # not a Smith
+
+    @withattrs(TestModel.Elasticsearch, 'mappings', {})
+    def test_contains(self):
+        TestModel.es.flush()  # update the mapping, username is analyzed
+        import time
+        time.sleep(2)  # flushing is not immediate :(
+        qs = TestModel.es.queryset.filter(username__contains=u"woot")
+        contents = qs.deserialize()
+        self.assertTrue(self.t1 in contents)
+        self.assertTrue(self.t2 in contents)
+        self.assertTrue(self.t3 not in contents)
+        self.assertTrue(self.t4 not in contents)

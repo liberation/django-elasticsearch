@@ -217,6 +217,9 @@ If ```use_globals``` is set to False, the facets will be filtered like the docum
 Add ```fields``` for suggestions.
 - es.queryset.order_by  
 - es.queryset.filter  
+Accepted lookups are: __exact, __should, __contains, __gt, __gte, __lt, __lte, __range  
+Just like in django, the default lookup is __exact.  
+See the [bool query](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-bool-query.html) for a difference between __exact (which maps to 'must') and __should.  
 - es.queryset.exclude  
 - es.queryset.mlt(id)  
 See the [more like this api](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-more-like-this.html).
