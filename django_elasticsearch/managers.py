@@ -102,11 +102,11 @@ class ElasticsearchManager():
 
     @needs_instance
     def do_index(self):
-        json = self.serialize()
+        body = self.serialize()
         es_client.index(index=self.index,
                         doc_type=self.doc_type,
                         id=self.instance.id,
-                        body=json)
+                        body=body)
 
     @needs_instance
     def delete(self):
@@ -155,7 +155,8 @@ class ElasticsearchManager():
 
     def all(self):
         """
-        Convenience method
+        Convenience method,
+        proxy to an empty search.
         """
         return self.search("")
 
@@ -169,6 +170,14 @@ class ElasticsearchManager():
         If global_facets is True,
         the most used facets accross all documents will be returned.
         if set to False, the facets will be filtered by the search query
+
+        :arg query
+        :arg facets
+        :arg facets_limit
+        :arg global_facets
+        :arg suggest_fields
+        :arg suggest_limit
+        :arg fuzziness
         """
 
         q = self.queryset
@@ -274,6 +283,8 @@ class ElasticsearchManager():
         Returns a nice diff between the db and es.
         """
         a = self.get()
+        if source is not None:
+            b = source
         if getattr(self.instance, '_is_es_deserialized', False):
             # we need to fetch it from db
             b = json.loads(self.model.objects.get(pk=self.instance.pk))
