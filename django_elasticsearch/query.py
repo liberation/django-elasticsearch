@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.db.models import Model
 from django.db.models.query import QuerySet
 from django.db.models.query import REPR_OUTPUT_SIZE
 
@@ -134,6 +135,8 @@ class EsQueryset(QuerySet):
 
                 is_nested = 'properties' in mapping[field]
                 field_name = is_nested and field + ".id" or field
+                if is_nested and isinstance(value, Model):
+                    value = value.id
 
                 if operator == 'exact':
                     filtr = {'bool': {'must': [{'term': {field_name: value}}]}}
