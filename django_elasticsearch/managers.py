@@ -2,6 +2,7 @@
 import json
 
 from django.conf import settings
+from django.utils import importlib
 from django.db.models import FieldDoesNotExist
 
 from django_elasticsearch.query import EsQueryset
@@ -54,6 +55,13 @@ class ElasticsearchManager():
         else:
             raise TypeError
 
+        if isinstance(self.model.Elasticsearch.serializer_class, basestring):
+            module, kls = self.model.Elasticsearch.serializer_class.rsplit(".", 1)
+            mod = importlib.import_module(module)
+            self.serializer = getattr(mod, kls)(self.model)
+        else:
+            self.serializer = self.model.Elasticsearch.serializer_class(self.model)
+
     def get_index(self):
         return self.model.Elasticsearch.index
 
@@ -75,10 +83,9 @@ class ElasticsearchManager():
     def serialize(self):
         """
         Returns a json object suitable for elasticsearch indexation.
+        Note: by default, will use all the model's fields.
         """
-        # Note: by default, will use all the model's fields.
-        serializer = self.model.Elasticsearch.serializer_class(self.model)
-        return serializer.serialize(self.instance)
+        return self.serializer.serialize(self.instance)
 
     def deserialize(self, source):
         """

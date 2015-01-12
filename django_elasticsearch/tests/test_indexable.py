@@ -38,6 +38,11 @@ class EsIndexableTestCase(TestCase):
         self.assertIn('"last_name": "foo"', json)
         self.assertIn('"date_joined": "%s"' % self.instance.date_joined.isoformat(), json)
 
+    @withattrs(TestModel.Elasticsearch, 'serializer_class',
+               'django_elasticsearch.serializers.ModelJsonSerializer')
+    def test_dynamic_serializer_import(self):
+        self.test_serialize()
+
     def test_deserialize(self):
         instance = TestModel.es.deserialize({'username':'test'})
         self.assertEqual(instance.username, 'test')
@@ -157,10 +162,12 @@ class EsIndexableTestCase(TestCase):
         expected = '{"first_name": "woot", "last_name": "foo"}'
         self.assertEqual(json, expected)
 
-    @withattrs(TestModel.Elasticsearch, 'serializer_class', CustomSerializer)
     def test_custom_serializer(self):
+        old_serializer = self.instance.es.serializer
+        self.instance.es.serializer = CustomSerializer(TestModel)
         json = self.instance.es.serialize()
         self.assertIn('"first_name": "pedro"', json)
+        self.instance.es.serializer = old_serializer
 
     def test_reevaluate(self):
         # test that the request is resent if something changed filters, ordering, ndx
