@@ -55,12 +55,7 @@ class ElasticsearchManager():
         else:
             raise TypeError
 
-        if isinstance(self.model.Elasticsearch.serializer_class, basestring):
-            module, kls = self.model.Elasticsearch.serializer_class.rsplit(".", 1)
-            mod = importlib.import_module(module)
-            self.serializer = getattr(mod, kls)(self.model)
-        else:
-            self.serializer = self.model.Elasticsearch.serializer_class(self.model)
+        self.serializer = None
 
     def get_index(self):
         return self.model.Elasticsearch.index
@@ -79,13 +74,24 @@ class ElasticsearchManager():
     def check_cluster(self):
         return es_client.ping()
 
+    def get_serializer(self):
+        if not self.serializer:
+            if isinstance(self.model.Elasticsearch.serializer_class, basestring):
+                module, kls = self.model.Elasticsearch.serializer_class.rsplit(".", 1)
+                mod = importlib.import_module(module)
+                self.serializer = getattr(mod, kls)(self.model)
+            else:
+                self.serializer = self.model.Elasticsearch.serializer_class(self.model)
+        return self.serializer
+
     @needs_instance
     def serialize(self):
         """
         Returns a json object suitable for elasticsearch indexation.
         Note: by default, will use all the model's fields.
         """
-        return self.serializer.serialize(self.instance)
+        serializer = self.get_serializer()
+        return serializer.serialize(self.instance)
 
     def deserialize(self, source):
         """
@@ -95,7 +101,7 @@ class ElasticsearchManager():
         actually is synchronised with the db one.
         That is why the save() method is desactivated.
         """
-        serializer = self.model.Elasticsearch.serializer_class(self.model)
+        serializer = self.get_serializer()
 
         def instanciate(e):
             instance = self.model(**serializer.deserialize(e))
