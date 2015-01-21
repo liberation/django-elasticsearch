@@ -119,6 +119,7 @@ class EsQueryset(QuerySet):
         if self.filters:
             # TODO: should we add _cache = true ?!
             search['filter'] = {}
+            mapping = self.model.es.get_mapping()
 
             for field, value in self.filters.items():
                 try:
@@ -131,9 +132,7 @@ class EsQueryset(QuerySet):
                     # this is also django's default lookup type
                     operator = 'exact'
 
-                mapping = self.model.es.get_mapping()
-
-                is_nested = 'properties' in mapping[field]
+                is_nested = 'properties' in mapping.get(field, {})
                 field_name = is_nested and field + ".id" or field
                 if is_nested and isinstance(value, Model):
                     value = value.id

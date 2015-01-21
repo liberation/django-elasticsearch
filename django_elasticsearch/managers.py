@@ -56,6 +56,7 @@ class ElasticsearchManager():
             raise TypeError
 
         self.serializer = None
+        self._mapping = None
 
     def get_index(self):
         return self.model.Elasticsearch.index
@@ -276,13 +277,13 @@ class ElasticsearchManager():
         }
 
     def get_mapping(self):
-        """
-        Debug convenience method.
-        """
-        full_mapping = es_client.indices.get_mapping(index=self.index,
-                                                     doc_type=self.doc_type)
+        if self._mapping is None:
+            # TODO: could be done once for every index/doc_type ?
+            full_mapping = es_client.indices.get_mapping(index=self.index,
+                                                         doc_type=self.doc_type)
+            self._mapping = full_mapping[self.index]['mappings'][self.doc_type]['properties']
 
-        return full_mapping[self.index]['mappings'][self.doc_type]['properties']
+        return self._mapping
 
     def get_settings(self):
         """
