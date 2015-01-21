@@ -245,12 +245,14 @@ Not really working in all cases :(
 FAILING GRACEFULLY
 ==================
 
-You can catch ```elasticsearch.ConnectionError``` and ```elasticsearch.TransportError``` if you want to recover from an error on elasticsearch side. There is an exemple of it in ```django_elasticsearch.contrib.restframework.SearchListModelMixin.list()```.
+You can catch ```elasticsearch.ConnectionError``` and ```elasticsearch.TransportError``` if you want to recover from an error on elasticsearch side. There is an exemple of it in ```django_elasticsearch.views.ElasticsearchListView```.
 You can also use the ```MyModel.es.check_cluster()``` method which returns True if the cluster is available, in case you want to make sure of it before doing anything.
 
 
 TESTS
 =====
+
+django-elasticsearch has a 92% test coverage, and tests pass for django 1.4 to 1.7.
 
 ```
 $ cd test_project
@@ -268,5 +270,4 @@ To test with a older version of django, simply install it with, for example, ```
 TODO
 ====
 
-* up the test coverage (84%)
 * advanced docs / docstrings
