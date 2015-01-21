@@ -1,5 +1,6 @@
 import mock
 
+import django
 from django.test import TestCase
 from django.test.utils import override_settings
 
@@ -13,26 +14,27 @@ from django_elasticsearch.tests.models import TestModel
     ELASTICSEARCH_AUTO_INDEX=False,
     ELASTICSEARCH_SETTINGS={})
 class EsQuerysetTestCase(TestCase):
-
     def setUp(self):
         # create a bunch of documents
         TestModel.es.create_index(ignore=True)
 
         self.t1 = TestModel.objects.create(username=u"woot woot", first_name=u"John", last_name=u"Smith")
-        self.t1.es.do_index()
-
         self.t2 = TestModel.objects.create(username=u"woot", first_name=u"Jack", last_name=u"Smith")
-        self.t2.es.do_index()
-
         self.t3 = TestModel.objects.create(username=u"BigMama", first_name=u"Mama", last_name=u"Smith")
-        self.t3.es.do_index()
-
         self.t4 = TestModel.objects.create(username=u"foo", first_name=u"Foo", last_name=u"Bar")
-        self.t4.es.do_index()
+
+        # django 1.7 seems to handle settings differently than previous version
+        # which make the override of ELASTICSEARCH_AUTO_INDEX actually work
+        if django.VERSION[1] <= 7:
+            self.t1.es.do_index()
+            self.t2.es.do_index()
+            self.t3.es.do_index()
+            self.t4.es.do_index()
 
         TestModel.es.do_update()
 
     def tearDown(self):
+        super(EsQuerysetTestCase, self).tearDown()
         es_client.indices.delete(index=TestModel.es.get_index())
 
     def test_all(self):
@@ -94,8 +96,7 @@ class EsQuerysetTestCase(TestCase):
             u'last_name': [
                 {u'length': 5,
                  u'offset': 0,
-                 # TODO: understand why the `freq` attribute is 6 when there is only 3 hits ?
-                 u'options': [{u'freq': 6,
+                 u'options': [{u'freq': 3,
                                u'score': 0.8,
                                u'text': u'smith'}],
                  u'text': u'smath'}]}

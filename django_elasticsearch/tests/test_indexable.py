@@ -147,6 +147,8 @@ class EsIndexableTestCase(TestCase):
             'date_joined': {u'type': u'date', u'format': u'dateOptionalTime'}
         }
 
+        # reset the eventual cache on the Model mapping
+        TestModel.es._mapping = None
         mapping = TestModel.es.get_mapping()
         self.assertEqual(expected, mapping)
 

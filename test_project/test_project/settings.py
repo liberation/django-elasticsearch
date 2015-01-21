@@ -22,6 +22,8 @@ DATABASES = {
 
 REST_FRAMEWORK = {}
 
+TEST_RUNNER = 'django.test.simple.DjangoTestSuiteRunner'
+
 # Hosts/domain names that are valid for this site; required if DEBUG is False
 # See https://docs.djangoproject.com/en/1.4/ref/settings/#allowed-hosts
 ALLOWED_HOSTS = []

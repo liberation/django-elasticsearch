@@ -7,8 +7,6 @@ from django.db.models.signals import class_prepared
 from django_elasticsearch.serializers import ModelJsonSerializer
 from django_elasticsearch.managers import ElasticsearchManager
 
-ELASTICSEARCH_AUTO_INDEX = getattr(settings, 'ELASTICSEARCH_AUTO_INDEX', True)
-
 
 class EsIndexable(Model):
     """
@@ -75,7 +73,7 @@ def es_syncdb_callback(sender, app, created_models, **kwargs):
             model.es.create_index()
 
 
-if ELASTICSEARCH_AUTO_INDEX and not settings.DEBUG:
+if getattr(settings, 'ELASTICSEARCH_AUTO_INDEX', False) and not getattr(settings, 'DEBUG', False):
     # Note: can't specify the sender class because EsIndexable is Abstract,
     # see: https://code.djangoproject.com/ticket/9318
     post_save.connect(es_save_callback)
