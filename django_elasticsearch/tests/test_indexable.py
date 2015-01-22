@@ -11,7 +11,7 @@ from django_elasticsearch.serializers import ModelJsonSerializer
 
 
 class CustomSerializer(ModelJsonSerializer):
-    def get_es_first_name_val(self, instance, field_name):
+    def serialize_first_name(self, instance, field_name):
         return u'pedro'
 
 

@@ -241,6 +241,10 @@ A viewset mixin that adds the facets to the response data in case the Elasticsea
 * taggit.TaggitSerializer
 Not really working in all cases :(
 
+LOGGING
+=======
+
+Despite what the pyelasticsearch docs says, i didn't have any luck with the 'pyelasticsearch' logger, the 'elasticsearch' and 'elasticsearch.trace' loggers, however, are working well.
 
 FAILING GRACEFULLY
 ==================

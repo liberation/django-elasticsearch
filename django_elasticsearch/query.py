@@ -25,7 +25,12 @@ class EsQueryset(QuerySet):
         self.filters = {}
         self.facets_fields = None
         self.suggest_fields = None
-        self.ordering = getattr(self.model._meta, 'ordering', None)  # defaults to 'score'
+
+        # model.Elasticsearch.ordering -> model._meta.ordering -> _score
+        if hasattr(self.model.Elasticsearch, 'ordering'):
+            self.ordering = self.model.Elasticsearch.ordering
+        else:
+            self.ordering = getattr(self.model._meta, 'ordering', None)
         self.fuzziness = fuzziness
         self.ndx = None
         self._query = ''
@@ -132,28 +137,37 @@ class EsQueryset(QuerySet):
                     # this is also django's default lookup type
                     operator = 'exact'
 
-                is_nested = 'properties' in mapping.get(field, {})
+                try:
+                    is_nested = 'properties' in mapping[field]
+                except KeyError:
+                    is_nested = False
+
                 field_name = is_nested and field + ".id" or field
                 if is_nested and isinstance(value, Model):
                     value = value.id
 
                 if operator == 'exact':
                     filtr = {'bool': {'must': [{'term': {field_name: value}}]}}
+
                 elif operator == 'not':
                     filtr = {'bool': {'must_not': [{'term': {field_name: value}}]}}
+
                 elif operator in ['should', 'should_not']:
                     filtr = {'bool': {operator: [{'term': {field_name: value}}]}}
+
                 elif operator == 'contains':
                     filtr = {'query': {'match': {field_name: {'query': value}}}}
+
                 elif operator in ['gt', 'gte', 'lt', 'lte']:
                     filtr = {'range': {field_name: {operator: value}}}
+
                 elif operator == 'range':
                     filtr = {'range': {field_name: {
                         'gte': value[0],
-                        'lte': value[1]
-                    }}}
+                        'lte': value[1]}}}
                 else:
-                    raise NotImplementedError("{0} is not a valid filter lookup type.".format(operator))
+                    raise NotImplementedError(
+                        "{0} is not a valid filter lookup type.".format(operator))
 
                 nested_update(search['filter'], filtr)
 
