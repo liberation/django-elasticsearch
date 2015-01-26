@@ -13,22 +13,26 @@ from django_elasticsearch.tests.models import TestModel
 class EsQuerysetTestCase(TestCase):
     def setUp(self):
         # create a bunch of documents
-        TestModel.es.create_index(ignore=True)
+        TestModel.es.flush()
 
         self.t1 = TestModel.objects.create(username=u"woot woot",
                                            first_name=u"John",
-                                           last_name=u"Smith")
+                                           last_name=u"Smith",
+                                           email='johnsmith@host.com')
         self.t2 = TestModel.objects.create(username=u"woot",
                                            first_name=u"Jack",
                                            last_name=u"Smith",
+                                           last_login=datetime.now() + timedelta(seconds=1),
                                            date_joined=datetime.now() + timedelta(seconds=1))
         self.t3 = TestModel.objects.create(username=u"BigMama",
                                            first_name=u"Mama",
                                            last_name=u"Smith",
+                                           last_login=datetime.now() + timedelta(seconds=2),
                                            date_joined=datetime.now() + timedelta(seconds=2))
         self.t4 = TestModel.objects.create(username=u"foo",
                                            first_name=u"Foo",
                                            last_name=u"Bar",
+                                           last_login=datetime.now() + timedelta(seconds=3),
                                            date_joined=datetime.now() + timedelta(seconds=3))
 
         # django 1.7 seems to handle settings differently than previous version
@@ -180,6 +184,34 @@ class EsQuerysetTestCase(TestCase):
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 not in contents)
 
+    def test_isnull_lookup(self):
+        # Note: it works because we serialize empty string emails to the null value
+        qs = TestModel.es.all().filter(email__isnull=False)
+        contents = qs.deserialize()
+        self.assertEqual(qs.count(), 1)
+        self.assertTrue(self.t1 in contents)
+
+        qs = TestModel.es.all().exclude(email__isnull=False)
+        contents = qs.deserialize()
+        self.assertEqual(qs.count(), 3)
+        self.assertFalse(self.t1 in contents)
+
+    def test_sub_object_lookup(self):
+        qs = TestModel.es.all().filter(last_login__iso=self.t1.last_login)
+        contents = qs.deserialize()
+        self.assertEqual(qs.count(), 1)
+        self.assertTrue(self.t1 in contents)
+
+        qs = TestModel.es.all().filter(last_login__iso__isnull=False)
+        contents = qs.deserialize()
+        self.assertEqual(qs.count(), 4)
+
+    def test_sub_object_nested_lookup(self):
+        qs = TestModel.es.all().filter(last_login__iso=self.t1.last_login)
+        contents = qs.deserialize()
+        self.assertTrue(qs.count(), 1)
+        self.assertTrue(self.t1 in contents)
+
     def test_filter_date_range(self):
         qs = TestModel.es.queryset.filter(date_joined__gte=self.t2.date_joined)
         contents = qs.deserialize()
@@ -233,12 +265,15 @@ class EsQuerysetTestCase(TestCase):
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 not in contents)  # not a Smith
 
+    @withattrs(TestModel.Elasticsearch, 'fields', ['id', 'username'])
     @withattrs(TestModel.Elasticsearch, 'mappings', {})
     def test_contains(self):
-        TestModel.es.flush()  # update the mapping, username is analyzed
+        TestModel.es._fields = None
+        TestModel.es._mapping = None
+        TestModel.es.flush()  # update the mapping, username is now analyzed
         import time
         time.sleep(2)  # flushing is not immediate :(
-        qs = TestModel.es.queryset.filter(username__contains=u"woot")
+        qs = TestModel.es.queryset.filter(username__contains='woot')  # smith@host.com
         contents = qs.deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 in contents)

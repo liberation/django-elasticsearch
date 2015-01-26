@@ -131,11 +131,8 @@ class EsQueryset(QuerySet):
                     value = value.lower()
                 except AttributeError:
                     pass
-                try:
-                    field, operator = field.split('__')
-                except ValueError:  # could not split
-                    # this is also django's default lookup type
-                    operator = 'exact'
+
+                field, operator = self.sanitize_lookup(field)
 
                 try:
                     is_nested = 'properties' in mapping[field]
@@ -307,6 +304,16 @@ class EsQueryset(QuerySet):
         self.filters.update(kwargs)
         return self
 
+    def sanitize_lookup(self, lookup):
+        valid_operators = ['exact', 'not', 'should', 'should_not', 'range','gt', 'lt', 'gte', 'lte', 'contains', 'isnull']
+        words = lookup.split('__')
+        fields = [word for word in words if word not in valid_operators]
+        # this is also django's default lookup type
+        operator = 'exact'
+        if words[-1] in valid_operators:
+            operator = words[-1]
+        return '.'.join(fields), operator
+
     def exclude(self, **kwargs):
         if self.is_evaluated:
             # empty the result cache
@@ -314,12 +321,8 @@ class EsQueryset(QuerySet):
 
         filters = {}
         # TODO: not __contains, not __range
-        for field, value in kwargs.items():
-            try:
-                field, operator = field.split('__')
-            except ValueError:  # could not split
-                # this is also django's default lookup type
-                operator = 'exact'
+        for lookup, value in kwargs.items():
+            field, operator = self.sanitize_lookup(lookup)
 
             if operator == 'exact':
                 filters['{0}__not'.format(field)] = value
@@ -331,7 +334,7 @@ class EsQueryset(QuerySet):
                 inverse_map = {'gt': 'lte', 'gte': 'lt', 'lt': 'gte', 'lte': 'gt'}
                 filters['{0}__{1}'.format(field, inverse_map[operator])] = value
             elif operator == 'isnull':
-                filters[field] = not value
+                filters[lookup] = not value
             else:
                 raise NotImplementedError("{0} is not a valid *exclude* lookup type.".format(operator))
 

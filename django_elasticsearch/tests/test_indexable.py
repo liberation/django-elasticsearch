@@ -18,7 +18,7 @@ class CustomSerializer(ModelJsonSerializer):
 class EsIndexableTestCase(TestCase):
     def setUp(self):
         # auto index is disabled for tests so we do it manually
-        TestModel.es.create_index(ignore=True)
+        TestModel.es.flush()
         self.instance = TestModel.objects.create(username=u"1",
                                                  first_name=u"woot",
                                                  last_name=u"foo")
@@ -125,6 +125,8 @@ class EsIndexableTestCase(TestCase):
                 }
             }
         }
+        # reset cache on _fields
+        TestModel.es._fields = None
         self.assertEqual(expected, TestModel.es.make_mapping())
 
     @withattrs(TestModel.Elasticsearch, 'completion_fields', ['first_name'])

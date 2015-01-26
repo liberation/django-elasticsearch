@@ -56,6 +56,7 @@ class ElasticsearchManager():
             raise TypeError
 
         self.serializer = None
+        self._fields = []
         self._mapping = None
 
     def get_index(self):
@@ -231,9 +232,11 @@ class ElasticsearchManager():
         es_client.indices.refresh(index=self.index)
 
     def get_fields(self):
+        if self._fields:
+            return self._fields
         model_fields = [f.name for f in self.model._meta.fields]
-        fields = self.model.Elasticsearch.fields or model_fields
-        return fields
+        self._fields = self.model.Elasticsearch.fields or model_fields
+        return self._fields
 
     def make_mapping(self):
         """
