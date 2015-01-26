@@ -165,9 +165,16 @@ class EsQueryset(QuerySet):
                     filtr = {'range': {field_name: {
                         'gte': value[0],
                         'lte': value[1]}}}
+
+                elif operator == 'isnull':
+                    if value:
+                        filtr = {'missing': {'field': field_name}}
+                    else:
+                        filtr = {'exists': {'field': field_name}}
+
                 else:
-                    raise NotImplementedError(
-                        "{0} is not a valid filter lookup type.".format(operator))
+                    filtr = {'bool': {'must': [{'term': {
+                        field_name + '.' + operator: value}}]}}
 
                 nested_update(search['filter'], filtr)
 
@@ -323,6 +330,8 @@ class EsQueryset(QuerySet):
             elif operator in ['gt', 'gte', 'lt', 'lte']:
                 inverse_map = {'gt': 'lte', 'gte': 'lt', 'lt': 'gte', 'lte': 'gt'}
                 filters['{0}__{1}'.format(field, inverse_map[operator])] = value
+            elif operator == 'isnull':
+                filters[field] = not value
             else:
                 raise NotImplementedError("{0} is not a valid *exclude* lookup type.".format(operator))
 
