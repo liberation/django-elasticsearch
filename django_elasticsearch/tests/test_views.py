@@ -10,7 +10,6 @@ from django_elasticsearch.managers import es_client
 from django_elasticsearch.tests.models import TestModel
 
 
-@override_settings(ELASTICSEARCH_SETTINGS={})
 class EsViewTestCase(TestCase):
     urls = 'django_elasticsearch.tests.urls'
 

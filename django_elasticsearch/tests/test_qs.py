@@ -1,8 +1,8 @@
 import mock
+from datetime import datetime, timedelta
 
 import django
 from django.test import TestCase
-from django.test.utils import override_settings
 
 from django_elasticsearch.client import es_client
 from django_elasticsearch.managers import EsQueryset
@@ -10,18 +10,26 @@ from django_elasticsearch.tests.utils import withattrs
 from django_elasticsearch.tests.models import TestModel
 
 
-@override_settings(
-    ELASTICSEARCH_AUTO_INDEX=False,
-    ELASTICSEARCH_SETTINGS={})
 class EsQuerysetTestCase(TestCase):
     def setUp(self):
         # create a bunch of documents
         TestModel.es.create_index(ignore=True)
 
-        self.t1 = TestModel.objects.create(username=u"woot woot", first_name=u"John", last_name=u"Smith")
-        self.t2 = TestModel.objects.create(username=u"woot", first_name=u"Jack", last_name=u"Smith")
-        self.t3 = TestModel.objects.create(username=u"BigMama", first_name=u"Mama", last_name=u"Smith")
-        self.t4 = TestModel.objects.create(username=u"foo", first_name=u"Foo", last_name=u"Bar")
+        self.t1 = TestModel.objects.create(username=u"woot woot",
+                                           first_name=u"John",
+                                           last_name=u"Smith")
+        self.t2 = TestModel.objects.create(username=u"woot",
+                                           first_name=u"Jack",
+                                           last_name=u"Smith",
+                                           date_joined=datetime.now() + timedelta(seconds=1))
+        self.t3 = TestModel.objects.create(username=u"BigMama",
+                                           first_name=u"Mama",
+                                           last_name=u"Smith",
+                                           date_joined=datetime.now() + timedelta(seconds=2))
+        self.t4 = TestModel.objects.create(username=u"foo",
+                                           first_name=u"Foo",
+                                           last_name=u"Bar",
+                                           date_joined=datetime.now() + timedelta(seconds=3))
 
         # django 1.7 seems to handle settings differently than previous version
         # which make the override of ELASTICSEARCH_AUTO_INDEX actually work

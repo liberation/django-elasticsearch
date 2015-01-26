@@ -1,7 +1,16 @@
 # Django settings for test_project project.
 
-DEBUG = True
+DEBUG = False
 TEMPLATE_DEBUG = DEBUG
+
+REST_FRAMEWORK = {}
+TEST_RUNNER = 'django.test.simple.DjangoTestSuiteRunner'
+ELASTICSEARCH_AUTO_INDEX=False
+ELASTICSEARCH_SETTINGS = {
+    # better tests performance
+    "number_of_shards": 1,
+    "index.store.type": "memory"
+}
 
 ADMINS = (
     # ('Your Name', 'your_email@example.com'),
@@ -20,9 +29,6 @@ DATABASES = {
     }
 }
 
-REST_FRAMEWORK = {}
-
-TEST_RUNNER = 'django.test.simple.DjangoTestSuiteRunner'
 
 # Hosts/domain names that are valid for this site; required if DEBUG is False
 # See https://docs.djangoproject.com/en/1.4/ref/settings/#allowed-hosts
@@ -49,7 +55,7 @@ USE_I18N = True
 USE_L10N = True
 
 # If you set this to False, Django will not use timezone-aware datetimes.
-USE_TZ = True
+USE_TZ = False
 
 # Absolute filesystem path to the directory that will hold user-uploaded files.
 # Example: "/home/media/media.lawrence.com/media/"
@@ -150,7 +156,12 @@ LOGGING = {
             'level': 'ERROR',
             'filters': ['require_debug_false'],
             'class': 'django.utils.log.AdminEmailHandler'
-        }
+        },
+        'console': {
+            'class': 'logging.StreamHandler',
+            # 'stream': sys.stdout,
+            'level': 'DEBUG'
+        },
     },
     'loggers': {
         'django.request': {
@@ -158,5 +169,10 @@ LOGGING = {
             'level': 'ERROR',
             'propagate': True,
         },
-    }
+        # 'elasticsearch': {
+        #     'handlers': ['console'],
+        #     'level': 'DEBUG',
+        #     'propagate': True
+        # }
+    },
 }

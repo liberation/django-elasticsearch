@@ -15,7 +15,6 @@ class CustomSerializer(ModelJsonSerializer):
         return u'pedro'
 
 
-@override_settings(ELASTICSEARCH_SETTINGS={})
 class EsIndexableTestCase(TestCase):
     def setUp(self):
         # auto index is disabled for tests so we do it manually
