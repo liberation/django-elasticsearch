@@ -30,7 +30,7 @@ class ElasticsearchView(View):
 
     def get_queryset(self):
         if self.es_failed:
-            return getattr(self, 'fallback_queryset', None) or self.model.objects.all()
+            return self.model.objects.all()
         else:
             return self.queryset or self.model.es.all()
 
