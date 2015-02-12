@@ -201,16 +201,16 @@ class ElasticsearchManager():
         if facets is None and self.model.Elasticsearch.facets_fields:
             facets = self.model.Elasticsearch.facets_fields
         if facets:
-            q.facet(facets,
-                    limit=facets_limit or self.model.Elasticsearch.facets_limit,
-                    use_globals=global_facets)
+            q = q.facet(facets,
+                        limit=facets_limit or self.model.Elasticsearch.facets_limit,
+                        use_globals=global_facets)
 
         if suggest_fields is None and self.model.Elasticsearch.suggest_fields:
             suggest_fields = self.model.Elasticsearch.suggest_fields
         if suggest_fields:
-            q.suggest(fields=suggest_fields, limit=suggest_limit)
+            q = q.suggest(fields=suggest_fields, limit=suggest_limit)
 
-        return q.search(query)
+        return q.query(query)
 
     def complete(self, field_name, query):
         """

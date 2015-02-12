@@ -97,7 +97,7 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(expected, qs.facets)
 
     def test_non_global_facets(self):
-        qs = TestModel.es.queryset.facet(['last_name'], use_globals=False).query("Foo")
+        qs = TestModel.es.search("Foo").facet(['last_name'], use_globals=False)
         expected = {u'last_name': {u'buckets': [{u'doc_count': 1,
                                                  u'key': u'bar'}]}}
         self.assertEqual(expected, qs.facets)
@@ -118,6 +118,13 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(TestModel.es.count(), 4)
         self.assertEqual(TestModel.es.search("John").count(), 1)
         self.assertEqual(TestModel.es.search("").filter(last_name=u"Smith").count(), 3)
+
+    def test_count_after_reeval(self):
+        # regression test
+        q = TestModel.es.all()
+        self.assertEqual(q.count(), 4)
+        q = q.filter(username="woot")
+        self.assertEqual(q.count(), 1)
 
     def test_ordering(self):
         qs = TestModel.es.queryset.order_by('username')
@@ -279,3 +286,12 @@ class EsQuerysetTestCase(TestCase):
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 not in contents)
         self.assertTrue(self.t4 not in contents)
+
+    def test_clone_query(self):
+        q = TestModel.es.all()
+        q2 = q.filter(username=u"woot")
+        q3 = q.filter(username=u"foo")
+
+        self.assertEqual(q.count(), 4)
+        self.assertEqual(q2.count(), 1)
+        self.assertEqual(q3.count(), 1)

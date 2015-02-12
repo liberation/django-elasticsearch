@@ -1,3 +1,5 @@
+import copy
+
 from django.conf import settings
 from django.db.models import Model
 from django.db.models.query import QuerySet
@@ -43,6 +45,29 @@ class EsQueryset(QuerySet):
         self._facets = None
         self._result_cache = []  # store
         self._total = None
+
+    def __getstate__(self):
+        obj_dict = self.__dict__.copy()
+        return obj_dict
+
+    def __deepcopy__(self, memo):
+        """
+        Deep copy of a QuerySet doesn't populate the cache
+        """
+        obj = self.__class__(self.model)
+        for k, v in self.__dict__.items():
+            if k not in ['_result_cache', '_facets', '_suggestions', '_total']:
+                obj.__dict__[k] = copy.deepcopy(v, memo)
+        return obj
+
+    def _clone(self):
+        # copy everything but the results cache
+        clone = copy.deepcopy(self)  # deepcopy because .filters is immutable
+        clone._suggestions = None
+        clone._facets = None
+        clone._result_cache = []  # store
+        clone._total = None
+        return clone
 
     def __iter__(self):
         self.do_search()
@@ -267,42 +292,34 @@ class EsQueryset(QuerySet):
         self._total = r['hits']['total']
         return self
 
-    def search(self, query):
-        self.query(query)
-        return self
+    def query(self, query):
+        clone = self._clone()
+        clone._query = query
+        return clone
 
     def facet(self, fields, limit=None, use_globals=True):
         # TODO: bench global facets !!
-        self.facets_fields = fields
-        self.facets_limit = limit
-        self.global_facets = use_globals
-        return self
+        clone = self._clone()
+        clone.facets_fields = fields
+        clone.facets_limit = limit
+        clone.global_facets = use_globals
+        return clone
 
     def suggest(self, fields, limit=None):
-        self.suggest_fields = fields
-        self.suggest_limit = limit
-        return self
-
-    def query(self, query):
-        if self.is_evaluated:
-            # empty the result cache
-            self._result_cache = []
-        self._query = query
-        return self
+        clone = self._clone()
+        clone.suggest_fields = fields
+        clone.suggest_limit = limit
+        return clone
 
     def order_by(self, *fields):
-        if self.is_evaluated:
-            # empty the result cache
-            self._result_cache = []
-        self.ordering = fields
-        return self
+        clone = self._clone()
+        clone.ordering = fields
+        return clone
 
     def filter(self, **kwargs):
-        if self.is_evaluated:
-            # empty the result cache
-            self._result_cache = []
-        self.filters.update(kwargs)
-        return self
+        clone = self._clone()
+        clone.filters.update(kwargs)
+        return clone
 
     def sanitize_lookup(self, lookup):
         valid_operators = ['exact', 'not', 'should', 'should_not', 'range','gt', 'lt', 'gte', 'lte', 'contains', 'isnull']
@@ -315,9 +332,7 @@ class EsQueryset(QuerySet):
         return '.'.join(fields), operator
 
     def exclude(self, **kwargs):
-        if self.is_evaluated:
-            # empty the result cache
-            self._result_cache = []
+        clone = self._clone()
 
         filters = {}
         # TODO: not __contains, not __range
@@ -338,13 +353,13 @@ class EsQueryset(QuerySet):
             else:
                 raise NotImplementedError("{0} is not a valid *exclude* lookup type.".format(operator))
 
-        self.filters.update(filters)
-        return self
+        clone.filters.update(filters)
+        return clone
 
     ## getters
     def all(self):
-        self.search('')
-        return self
+        clone = self._clone()
+        return clone
 
     def get(self, **kwargs):
         pk = kwargs.get('pk', None) or kwargs.get('id', None)

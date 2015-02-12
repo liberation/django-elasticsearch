@@ -78,7 +78,7 @@ class EsIndexableTestCase(TestCase):
         self.assertEqual(len(hits), 1)
 
     def test_search_with_facets(self):
-        s = TestModel.es.search('whatever', facets=['first_name',])
+        s = TestModel.es.search('whatever').facet(['first_name',])
         self.assertEqual(s.count(), 0)
         expected = {u'doc_count': 1,
                     u'first_name': {u'buckets': [{u'doc_count': 1,

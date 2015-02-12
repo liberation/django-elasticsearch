@@ -43,9 +43,9 @@ class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
                             for k, v in request.GET.iteritems()
                             if k in filterable])
 
-            q = queryset.search(query).filter(**filters)
+            q = queryset.query(query).filter(**filters)
             if ordering:
-                q.order_by(*ordering)
+                q = q.order_by(*ordering)
 
             return q
         else:

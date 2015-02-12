@@ -130,11 +130,11 @@ class EsRestFrameworkTestCase(TestCase):
         TestModel.es.do_update()
 
         r = self.client.get('/rf/tests/autocomplete/', {'f': 'username',
-                                                     'q': 'what'})
+                                                        'q': 'what'})
         self.assertTrue('whatever' in r.data)
 
         r = self.client.get('/rf/tests/autocomplete/', {'f': 'first_name',
-                                                     'q': 'woo'})
+                                                        'q': 'woo'})
         # first_name is NOT in the completion_fields -> 404
         self.assertEqual(r.status_code, 404)
 
