@@ -297,10 +297,10 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(q2.count(), 1)
         self.assertEqual(q3.count(), 1)
 
-    @override_settings(ELASTICSEARCH_CONNECTION_KWARGS={'max_retries':1})
+    @override_settings(ELASTICSEARCH_CONNECTION_KWARGS={'max_retries': 0})
     def test_custom_client_connection_kwargs(self):
         # naive way to test this,
         # would be cool to find a way to test that it's actually taken into account
-        from django_elasticsearch import client
-        reload(client)
-        self.assertTrue(client.es_client.ping())
+        from django_elasticsearch import client as test_client
+        reload(test_client)
+        self.assertTrue(test_client.es_client.ping())

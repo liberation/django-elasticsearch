@@ -166,18 +166,20 @@ class EsRestFrameworkTestCase(TestCase):
         #from django_elasticsearch.tests.urls import TestViewSet
         from rest_framework.filters import DjangoFilterBackend, OrderingFilter
         from rest_framework.settings import api_settings
+
         api_settings.DEFAULT_FILTER_BACKENDS = (DjangoFilterBackend, OrderingFilter)
         # TODO: better way to fake es cluster's death ?
-        with mock.patch('django_elasticsearch.client.es_client.search') as mock_search:
+
+        with mock.patch.object(es_client, 'search') as mock_search:
             mock_search.side_effect = TransportError()
-            with mock.patch('django_elasticsearch.client.es_client.count') as mock_count:
+            with mock.patch.object(es_client, 'count') as mock_count:
                 mock_count.side_effect = TransportError()
-                with mock.patch('django_elasticsearch.client.es_client.get') as mock_get:
+                with mock.patch.object(es_client, 'get') as mock_get:
                     mock_get.side_effect = TransportError()
                     # should fallback to a regular django queryset / filtering
                     r = self.client.get('/rf/tests/')
                     self.assertEqual(r.status_code, 200)
-                    self.assertTrue(r.data['filter_status'] == 'Failed')
+                    self.assertEqual(r.data['filter_status'], 'Failed')
                     self.assertEqual(r.data['count'], 3)
                     self._test_filter_backend_filters()
                     self._test_pagination()
