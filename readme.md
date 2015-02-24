@@ -70,6 +70,10 @@ If set, will be passed when creating any index [as is](http://www.elasticsearch.
 defaults to 0.5  
 Will be applied to any es.search query, See the [fuzziness section](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/common-options.html#fuzziness) of the elasticsearch documentation.
 
+**ELASTICSEARCH_CONNECTION_KWARGS**
+defaults to {}
+Additional kwargs to be passed to at the instanciation of the elasticsearch client. Useful to manage HTTPS connection for example. ([Reference](http://elasticsearch-py.readthedocs.org/en/master/api.html#elasticsearch.Elasticsearch))
+
 Model scope configuration:
 --------------------------
 
