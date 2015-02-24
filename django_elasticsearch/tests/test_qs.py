@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 import django
 from django.test import TestCase
+from django.test.utils import override_settings
 
 from django_elasticsearch.client import es_client
 from django_elasticsearch.managers import EsQueryset
@@ -295,3 +296,11 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(q.count(), 4)
         self.assertEqual(q2.count(), 1)
         self.assertEqual(q3.count(), 1)
+
+    @override_settings(ELASTICSEARCH_CONNECTION_KWARGS={'max_retries':1})
+    def test_custom_client_connection_kwargs(self):
+        # naive way to test this,
+        # would be cool to find a way to test that it's actually taken into account
+        from django_elasticsearch import client
+        reload(client)
+        self.assertTrue(client.es_client.ping())
