@@ -33,7 +33,7 @@ MyModel(EsIndexable, models.Model):
 
 Then you can do:
 ```python
->>> q = MyModel.es.search('foo')
+>>> q = MyModel.es.search('value')
 >>> q
 [{'id': 1, 'foo': 'A value'}, {'id': 2, 'foo': 'Another value'}, ...]
 >>> q.deserialize()
