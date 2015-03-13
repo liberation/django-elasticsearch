@@ -67,7 +67,8 @@ class ElasticsearchManager():
         return self.get_index()
 
     def get_doc_type(self):
-        return 'model-{0}'.format(self.model.__name__)
+        return (self.model.Elasticsearch.doc_type
+                or 'model-{0}'.format(self.model.__name__))
 
     @property
     def doc_type(self):

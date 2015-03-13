@@ -17,6 +17,7 @@ class EsIndexable(Model):
 
     class Elasticsearch:
         index = getattr(settings, 'ELASTICSEARCH_DEFAULT_INDEX', 'django')
+        doc_type = None  # defaults to 'model-{model.name}'
         mapping = None
         serializer_class = ModelJsonSerializer
         fields = None
