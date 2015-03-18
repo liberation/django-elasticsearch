@@ -31,6 +31,7 @@ class TestModelESSerializer(ModelJsonSerializer):
 class TestModel(User, EsIndexable):
     class Elasticsearch(EsIndexable.Elasticsearch):
         index = 'django-test'
+        doc_type = 'test-doc-type'
         mappings = {
             "username": {"index": "not_analyzed"},
             "last_login": {"type": "object",

@@ -112,7 +112,7 @@ class EsIndexableTestCase(TestCase):
     def test_custom_mapping(self):
         # should take the defaults into accounts
         expected = {
-            'model-TestModel': {
+            TestModel.Elasticsearch.doc_type: {
                 'properties': {
                     'username': {
                         'analyzer': 'test_analyzer',
@@ -171,6 +171,12 @@ class EsIndexableTestCase(TestCase):
         json = self.instance.es.serialize()
         self.assertIn('"first_name": "pedro"', json)
         self.instance.es.serializer = old_serializer
+
+    def test_custom_index(self):
+        es_client.indices.exists(TestModel.Elasticsearch.index)
+
+    def test_custom_doc_type(self):
+        es_client.indices.exists_type('django-test', 'test-doc-type')
 
     def test_reevaluate(self):
         # test that the request is resent if something changed filters, ordering, ndx
