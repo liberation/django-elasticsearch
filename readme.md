@@ -97,9 +97,13 @@ Each EsIndexable model receive an Elasticsearch class that contains its options 
 defaults to 'django'  
 The elasticsearch index in which this model(document type) will be indexed.
 
+* **doc_type**
+defaults to model-{model_name}  
+The elasticsearch type in which this model will be indexed.
+
 * **fields**  
 defaults to None  
-The fields to be indexed by elasticsearch, if let to None, all models fields will be indexed.
+The fields to be indexed by elasticsearch, if left to None, all models fields will be indexed.
 
 * **mapping**  
 defaults to None  
