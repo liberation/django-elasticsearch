@@ -68,7 +68,7 @@ Defaults to 'http://localhost:9200'
 The url of your elasticsearch cluster/instance.
 
 * **ELASTICSEARCH_AUTO_INDEX**  
-Defaults to True  
+Defaults to False  
 Set to false if you want to handle the elasticsearch operations yourself. By default the creation of the index, the indexation and deletions are hooked respectively to the post_syncdb, post_save and post_delete signals.
 If you have already done a syncdb, you can just call ```MyModel.es.create_index()``` to create the index/mapping.
 
