@@ -58,6 +58,9 @@ Then you can do:
 The elasticsearch manager methods (all, search, mlt) returns an instance of a EsQueryset, it's like a django Queryset but it queries elasticsearch instead of your db.  
 Like a regular Queryset, an EsQueryset is lazy, and if evaluated, returns a list of documents. The ```.deserialize()``` method returns models instanciated from elasticsearch values.
 
+> django-elasticsearch **DOES NOT** index documents by itself unless told to, either set settings.ELASTICSEARCH_AUTO_INDEX to True to index your models when you save them, or call directly myinstance.es.do_index().
+
+
 CONFIGURATION
 =============
 Project scope configuration (django settings):
