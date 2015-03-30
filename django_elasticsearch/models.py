@@ -74,7 +74,7 @@ def es_syncdb_callback(sender, app, created_models, **kwargs):
             model.es.create_index()
 
 
-if getattr(settings, 'ELASTICSEARCH_AUTO_INDEX', False) and not getattr(settings, 'DEBUG', False):
+if getattr(settings, 'ELASTICSEARCH_AUTO_INDEX', False):
     # Note: can't specify the sender class because EsIndexable is Abstract,
     # see: https://code.djangoproject.com/ticket/9318
     post_save.connect(es_save_callback)
