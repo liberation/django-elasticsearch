@@ -226,7 +226,7 @@ Also by defaut, filters are case insensitive, if you have a case sensitive token
 
 An EsQueryset acts a lot like a regular Queryset:
 ```
->>> q = MyModel.es.queryset.all
+>>> q = MyModel.es.queryset.all()
 >>> q = q.filter(title='foo')
 >>> q = q.search('test')
 >>> q  # only now is the query evaluated
