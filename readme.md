@@ -237,8 +237,8 @@ To access the facets you can use the facets property of the EsQueryset:
 ```python
 >>> MyModel.Elasticsearch.default_facets_fields
 ['author']
->>> q = MyModel.es.search('woot', facets='foo')  # returns a lazy EsQueryset instance
->>> q = MyModel.es.search('woot').facet('foo')  # is exactly the same
+>>> q = MyModel.es.search('woot', facets=['foo'])  # returns a lazy EsQueryset instance
+>>> q = MyModel.es.search('woot').facet(['foo'])  # is exactly the same
 >>> q.facets  # evals the query and returns the facets
 {u'doc_count': 45,
  u'foo': {u'buckets': [
@@ -270,7 +270,7 @@ Note that es.search automatically add the default facets set on the model to the
 * **es.queryset.mlt**(id)  
     See the [more like this api](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-more-like-this.html).
 
-**Does not return the EsQueryset** and thus are not chainable.  
+**Does not return an EsQueryset** and thus are not chainable.  
 * **es.queryset.count**()
 
 * **es.queryset.get**(pk=X)
@@ -280,12 +280,12 @@ Note that es.search automatically add the default facets set on the model to the
 CONTRIB
 =======
 
-* **restframework.ElasticsearchFilterBackend**
-    A filter backend for [rest framework](http://www.django-rest-framework.org/) that returns a EsQueryset.
-
-* **restframework.FacetedListModelMixin**
-    A viewset mixin that adds the facets to the response data in case the ElasticsearchFilterBackend was used.
-
+* **restframework.ElasticsearchFilterBackend**  
+    A filter backend for [rest framework](http://www.django-rest-framework.org/) that returns a EsQueryset.  
+  
+* **restframework.FacetedListModelMixin**  
+    A viewset mixin that adds the facets to the response data in case the ElasticsearchFilterBackend was used.  
+  
 LOGGING
 =======
 
