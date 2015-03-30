@@ -69,7 +69,7 @@ The url of your elasticsearch cluster/instance.
 
 * **ELASTICSEARCH_AUTO_INDEX**  
 Defaults to False  
-Set to false if you want to handle the elasticsearch operations yourself. By default the creation of the index, the indexation and deletions are hooked respectively to the post_syncdb, post_save and post_delete signals.
+Set to True if you **don't** want to handle the elasticsearch operations yourself. In that case the creation of the index, the indexation and deletions are hooked respectively to the post_syncdb, post_save and post_delete signals. Should probably only be used in a dev environment or for small scale databases.
 If you have already done a syncdb, you can just call ```MyModel.es.create_index()``` to create the index/mapping.
 
 * **ELASTICSEARCH_DEFAULT_INDEX**  
@@ -84,9 +84,9 @@ If set, will be passed when creating any index [as is](http://www.elasticsearch.
 defaults to 0.5  
 Will be applied to any es.search query, See the [fuzziness section](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/common-options.html#fuzziness) of the elasticsearch documentation.
 
-**ELASTICSEARCH_CONNECTION_KWARGS**
-defaults to {}
-Additional kwargs to be passed to at the instanciation of the elasticsearch client. Useful to manage HTTPS connection for example. ([Reference](http://elasticsearch-py.readthedocs.org/en/master/api.html#elasticsearch.Elasticsearch))
+**ELASTICSEARCH_CONNECTION_KWARGS**  
+defaults to {}  
+Additional kwargs to be passed to at the instanciation of the elasticsearch client. Useful to manage HTTPS connection for example ([Reference](http://elasticsearch-py.readthedocs.org/en/master/api.html#elasticsearch.Elasticsearch)).
 
 Model scope configuration:
 --------------------------
@@ -296,4 +296,5 @@ To test with a older version of django, simply install it with, for example, ```
 TODO
 ====
 
+* async indexation example (with celery?)
 * advanced docs / docstrings
