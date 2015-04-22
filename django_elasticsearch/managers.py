@@ -1,12 +1,17 @@
 # -*- coding: utf-8 -*-
 import json
 
+from django.db.models import Prefetch
 from django.conf import settings
 from django.utils import importlib
 from django.db.models import FieldDoesNotExist
 
 from django_elasticsearch.query import EsQueryset
 from django_elasticsearch.client import es_client
+
+from elasticsearch import helpers as es_helpers
+
+from helpers import queryset_batcher, queryset_iterator
 
 # Note: we use long/double because different db backends
 # could store different sizes of numerics ?
@@ -42,18 +47,15 @@ class ElasticsearchManager():
     most of those methods don't return a Queryset.
     """
 
-    def __init__(self, k):
-        # avoid a circular import, meh :(
-        from django_elasticsearch.models import EsIndexable
-        # k can be either an instance or a class
-        if isinstance(k, EsIndexable):
-            self.instance = k
-            self.model = k.__class__
-        elif issubclass(k, EsIndexable):
-            self.instance = None
-            self.model = k
-        else:
-            raise TypeError
+    instance = None
+
+    def __init__(self, model):
+        """
+        :param model: EsIndexable subclass
+        :return:
+        """
+
+        self.model = model
 
         self.serializer = None
         self._fields = []
@@ -115,6 +117,27 @@ class ElasticsearchManager():
             return [instanciate(e) for e in source]
         else:
             return instanciate(source)
+
+    def do_index_batch(self, instances, chunksize=2000):
+        """
+        Takes a list of model instances and does a bulk-index in ES
+        :param instances: list of model instances to bulk index
+        """
+
+        serializer = self.get_serializer()
+        docs = ({'_index': self.index,
+                 '_type': self.doc_type,
+                 '_id': instance.id,
+                 '_source': serializer.serialize(instance)}
+                for instance in instances)
+
+        for ok, result in es_helpers.streaming_bulk(es_client, actions=docs, chunk_size=chunksize):
+            action, result = result.popitem()
+            doc_id = '/%s/%s/%s' % (self.index, self.doc_type, result['_id'])
+            if not ok:
+                print('Failed to %s document %s: %r' % (action, doc_id, result))
+
+
 
     @needs_instance
     def do_index(self):
@@ -242,9 +265,10 @@ class ElasticsearchManager():
     def make_mapping(self):
         """
         Create the model's es mapping on the fly
+        supports nested serialization of reverse FK relationships.
+        M2M relationships can be traversed by using nested serialization of the FK
         """
         mappings = {}
-
         for field_name in self.get_fields():
             try:
                 field = self.model._meta.get_field(field_name)
@@ -273,6 +297,16 @@ class ElasticsearchManager():
         for field_name in fields:
             complete_name = "{0}_complete".format(field_name)
             mappings[complete_name] = {"type": "completion"}
+
+
+        for field_name in self.model.Elasticsearch.nested_fields:
+            mapping = {'type': 'nested'}
+            try:
+                mapping.update(self.model.Elasticsearch.mappings[field_name])
+            except (AttributeError, KeyError, TypeError):
+                pass
+            mappings[field_name] = mapping
+
 
         return {
             self.doc_type: {
@@ -335,9 +369,25 @@ class ElasticsearchManager():
         for instance in q:
             instance.es.do_index()
 
-    def flush(self):
+
+    def reindex_all_batch(self, queryset=None, chunksize=2000):
+
+        q = queryset or self.model.objects.all()
+        q = q.prefetch_related(*self.model.Elasticsearch.prefetch)
+
+        #self.do_index_batch(queryset_iterator(q, chunksize), chunksize=chunksize)
+        #
+        for chunk in queryset_batcher(q, chunksize=chunksize):
+            self.do_index_batch(chunk, chunksize=chunksize)
+
+    def flush(self, batch=False):
         es_client.indices.delete_mapping(index=self.index,
                                          doc_type=self.doc_type,
                                          ignore=404)
         self.create_index()
-        self.reindex_all()
+        if batch:
+          self.reindex_all_batch()
+        else:
+          self.reindex_all()
+
+

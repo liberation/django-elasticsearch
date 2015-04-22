@@ -1,6 +1,8 @@
 from django.http import Http404
 from django.conf import settings
 from django.core.paginator import Page
+from django.db import models
+from django.db.models import query
 
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
@@ -8,8 +10,9 @@ from rest_framework.mixins import ListModelMixin
 from rest_framework.decorators import list_route
 from rest_framework.filters import OrderingFilter
 from rest_framework.filters import DjangoFilterBackend
-from rest_framework.pagination import PaginationSerializer
-from rest_framework.serializers import BaseSerializer
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.serializers import BaseSerializer, ListSerializer
+from rest_framework.compat import OrderedDict
 
 from elasticsearch import NotFoundError
 try:
@@ -31,14 +34,16 @@ class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
                                  "django_elasticsearch.models.EsIndexable."
                                  "".format(model))
             search_param = getattr(view, 'search_param', api_settings.SEARCH_PARAM)
+            print search_param
             query = request.QUERY_PARAMS.get(search_param, '')
 
             # order of precedence : query params > class attribute > model Meta attribute
-            ordering = self.get_ordering(request)
+            ordering = self.get_ordering(request, queryset, view)
             if not ordering:
                 ordering = self.get_default_ordering(view)
 
             filterable = getattr(view, 'filter_fields', [])
+            print filterable
             filters = dict([(k, v)
                             for k, v in request.GET.iteritems()
                             if k in filterable])
@@ -53,40 +58,66 @@ class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
                 request, queryset, view
             )
 
+class EsPageNumberPagination(PageNumberPagination):
+    page_size = 10
 
-class ElasticsearchPaginationSerializer(PaginationSerializer):
-    @property
-    def data(self):
-        if self._data is None:
-            if type(self.object) is Page:
-                page = self.object
-                self._data = {
-                    'count': page.paginator.count,
-                    'previous': self.fields['previous'].to_native(page),
-                    'next': self.fields['next'].to_native(page),
-                    'results': page.object_list
-                }
+    def paginate_queryset(self, queryset, request, view=None):
+        data = super(EsPageNumberPagination,self).paginate_queryset(queryset, request, view=view)
+        self.facets = getattr(queryset, 'facets', {})
+        self.suggestions = getattr(queryset, 'suggestions', {})
+        return data
 
-        return super(ElasticsearchPaginationSerializer, self).data
+    def get_paginated_response(self, data):
+          return Response(OrderedDict([
+              ('count', self.page.paginator.count),
+              ('next', self.get_next_link()),
+              ('previous', self.get_previous_link()),
+              ('facets', self.facets),
+              ('suggestions', self.suggestions),
+              ('results', data)
+          ]))
 
+
+class CustomListSerializer(ListSerializer):
+    def to_representation(self, data):
+        """
+        List of object instances -> List of dicts of primitive datatypes.
+        """
+
+        # Dealing with nested relationships, data can be a Manager,
+        # so, first get a queryset from the Manager if needed
+        iterable = data.all() if isinstance(data, (models.Manager, query.QuerySet)) else data
+        #import pdb; pdb.set_trace()
+        return iterable
 
 class FakeSerializer(BaseSerializer):
     @property
     def base_fields(self):
         return {}
 
+    @classmethod
+    def many_init(cls, *args, **kwargs):
+        kwargs['child'] = cls()
+        return CustomListSerializer(*args, **kwargs)
+
     @property
     def data(self):
-        self._data = super(FakeSerializer, self).data
+        #self._data = super(FakeSerializer, self).data
+        print type(self._data)
         if type(self._data) == list:  # better way ?
             self._data = {
-                'count': self.object.count(),
-                'results': self._data
+                #'count': self.object.count(),
+                #'results': self._data
             }
         return self._data
 
     def to_native(self, obj):
         return obj
+
+    # def to_representation(self, obj):
+    #   #import pdb; pdb.set_trace()
+    #   return obj
+
 
 
 class IndexableModelMixin(object):
@@ -96,6 +127,7 @@ class IndexableModelMixin(object):
     filter_backends = [ElasticsearchFilterBackend,]
     FILTER_STATUS_MESSAGE_OK = 'Ok'
     FILTER_STATUS_MESSAGE_FAILED = 'Failed'
+    pagination_class = EsPageNumberPagination
 
     def __init__(self, *args, **kwargs):
         self.es_failed = False
@@ -108,16 +140,21 @@ class IndexableModelMixin(object):
             raise Http404
 
     def get_serializer_class(self):
+
         if self.action in ['list', 'retrieve'] and not self.es_failed:
             # let's return the elasticsearch response as it is.
             return FakeSerializer
         return super(IndexableModelMixin, self).get_serializer_class()
 
-    def get_pagination_serializer(self, page):
-        if not self.es_failed:
-            context = self.get_serializer_context()
-            return ElasticsearchPaginationSerializer(instance=page, context=context)
-        return super(IndexableModelMixin, self).get_pagination_serializer(page)
+    def get_serializer(self, page, many=False):
+
+        serializer_class = self.get_serializer_class()
+        context = self.get_serializer_context()
+        #import pdb; pdb.set_trace()
+        s = serializer_class(instance=page, context=context, many=many)
+
+        return s
+
 
     def get_queryset(self):
         if self.action in ['list', 'retrieve'] and not self.es_failed:
@@ -134,13 +171,15 @@ class IndexableModelMixin(object):
             return super(IndexableModelMixin, self).filter_queryset(queryset)
 
     def list(self, request, *args, **kwargs):
-        r = super(IndexableModelMixin, self).list(request, *args, **kwargs)
-        if not self.es_failed:
-            if getattr(self.object_list, 'facets', None):
-                r.data['facets'] = self.object_list.facets
 
-            if getattr(self.object_list, 'suggestions', None):
-                r.data['suggestions'] = self.object_list.suggestions
+        r = super(IndexableModelMixin, self).list(request, *args, **kwargs)
+
+        # if not self.es_failed:
+        #     if getattr(self.object_list, 'facets', None):
+        #         r.data['facets'] = self.object_list.facets
+        #
+        #     if getattr(self.object_list, 'suggestions', None):
+        #         r.data['suggestions'] = self.object_list.suggestions
 
         return r
 
