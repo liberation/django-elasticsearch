@@ -102,13 +102,14 @@ class FakeSerializer(BaseSerializer):
 
     @property
     def data(self):
-        #self._data = super(FakeSerializer, self).data
+        import pdb; pdb.set_trace()
+        self._data = super(FakeSerializer, self).data
         print type(self._data)
-        if type(self._data) == list:  # better way ?
-            self._data = {
-                #'count': self.object.count(),
-                #'results': self._data
-            }
+        # if type(self._data) == list:  # better way ?
+        #     self._data = {
+        #         #'count': self.object.count(),
+        #         #'results': self._data
+        #     }
         return self._data
 
     def to_native(self, obj):
@@ -129,6 +130,8 @@ class IndexableModelMixin(object):
     FILTER_STATUS_MESSAGE_FAILED = 'Failed'
     pagination_class = EsPageNumberPagination
 
+    ES_ACTIONS = ['list'] # what actions should use ES
+
     def __init__(self, *args, **kwargs):
         self.es_failed = False
         super(IndexableModelMixin, self).__init__(*args, **kwargs)
@@ -141,23 +144,20 @@ class IndexableModelMixin(object):
 
     def get_serializer_class(self):
 
-        if self.action in ['list', 'retrieve'] and not self.es_failed:
+        if self.action in self.ES_ACTIONS and not self.es_failed:
             # let's return the elasticsearch response as it is.
             return FakeSerializer
         return super(IndexableModelMixin, self).get_serializer_class()
 
     def get_serializer(self, page, many=False):
 
-        serializer_class = self.get_serializer_class()
         context = self.get_serializer_context()
+        serializer_class = self.get_serializer_class()
         #import pdb; pdb.set_trace()
-        s = serializer_class(instance=page, context=context, many=many)
-
-        return s
-
+        return serializer_class(instance=page, context=context, many=many)
 
     def get_queryset(self):
-        if self.action in ['list', 'retrieve'] and not self.es_failed:
+        if self.action in self.ES_ACTIONS and not self.es_failed:
             return self.model.es.search("")
         # db fallback
         return super(IndexableModelMixin, self).get_queryset()
