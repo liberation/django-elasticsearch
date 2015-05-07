@@ -58,6 +58,7 @@ class EsIndexable(Model):
       completion_fields = None
       nested_fields = []
       prefetch = [] # list of Prefetch objects
+      property_fields = []
 
     def __init__(self, *args, **kwargs):
         super(EsIndexable, self).__init__(*args, **kwargs)

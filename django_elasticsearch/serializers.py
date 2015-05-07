@@ -15,6 +15,7 @@ class ModelJsonSerializer(object):
     def __init__(self, model):
         self.model = model
 
+
     def serialize_field(self, instance, field_name):
         """
         Takes a field name and returns instance's db value converted
@@ -71,6 +72,8 @@ class ModelJsonSerializer(object):
 
     def _serialize(self, instance):
         model_fields = [f.name for f in instance._meta.fields]
+        model_fields.extend(instance.Elasticsearch.property_fields)
+
         fields = instance.Elasticsearch.fields or model_fields
         exclude = set(instance.Elasticsearch.exclude)
 

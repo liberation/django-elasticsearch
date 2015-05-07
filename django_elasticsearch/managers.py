@@ -259,6 +259,7 @@ class ElasticsearchManager():
         if self._fields:
             return self._fields
         model_fields = [f.name for f in self.model._meta.fields]
+        model_fields.extend(self.model.Elasticsearch.property_fields)
         self._fields = self.model.Elasticsearch.fields or model_fields
         return self._fields
 
