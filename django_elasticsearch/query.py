@@ -150,7 +150,7 @@ class EsQueryset(QuerySet):
             # TODO: should we add _cache = true ?!
             search['filter'] = {}
             mapping = self.model.es.get_mapping()
-
+            print self.filters
             for field, value in self.filters.items():
                 try:
                     value = value.lower()
@@ -163,6 +163,11 @@ class EsQueryset(QuerySet):
                     is_nested = 'properties' in mapping[field]
                 except KeyError:
                     is_nested = False
+                try:
+                  is_geo = 'type' in mapping[field] and mapping[field]['type'] == 'geo_point'
+                except KeyError:
+                  is_geo = False
+
 
                 field_name = is_nested and field + ".id" or field
                 if is_nested and isinstance(value, Model):
@@ -197,7 +202,14 @@ class EsQueryset(QuerySet):
                 else:
                     filtr = {'bool': {'must': [{'term': {
                         field_name + '.' + operator: value}}]}}
+                if is_geo:
 
+                  if operator == 'lat':
+                    filtr = {'geo_distance': {field_name: {'lat': value}}}
+                  elif operator == 'lon':
+                    filtr = {'geo_distance': {field_name: {'lon': value}}}
+                  elif operator == 'distance':
+                    filtr = {'geo_distance': {'distance': value}}
                 nested_update(search['filter'], filtr)
 
             body['query'] = {'filtered': search}
@@ -261,6 +273,7 @@ class EsQueryset(QuerySet):
 
         search_params['body'] = body
         self._body = body
+        print search_params
 
         if self.mode == self.MODE_MLT:
             # change include's defaults to False
@@ -322,7 +335,7 @@ class EsQueryset(QuerySet):
         return clone
 
     def sanitize_lookup(self, lookup):
-        valid_operators = ['exact', 'not', 'should', 'should_not', 'range','gt', 'lt', 'gte', 'lte', 'contains', 'isnull']
+        valid_operators = ['exact', 'not', 'should', 'should_not', 'range','gt', 'lt', 'gte', 'lte', 'contains', 'isnull', 'lat', 'lon', 'distance']
         words = lookup.split('__')
         fields = [word for word in words if word not in valid_operators]
         # this is also django's default lookup type

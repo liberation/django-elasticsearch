@@ -34,8 +34,10 @@ class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
                                  "django_elasticsearch.models.EsIndexable."
                                  "".format(model))
             search_param = getattr(view, 'search_param', api_settings.SEARCH_PARAM)
+
             print search_param
             query = request.QUERY_PARAMS.get(search_param, '')
+
 
             # order of precedence : query params > class attribute > model Meta attribute
             ordering = self.get_ordering(request, queryset, view)
@@ -47,6 +49,7 @@ class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
             filters = dict([(k, v)
                             for k, v in request.GET.iteritems()
                             if k in filterable])
+            print filters
 
             q = queryset.query(query).filter(**filters)
             if ordering:
