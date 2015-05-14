@@ -8,6 +8,7 @@ from django.db.models.query import REPR_OUTPUT_SIZE
 from django_elasticsearch.client import es_client
 from django_elasticsearch.utils import nested_update
 
+from helpers import haversine
 
 class EsQueryset(QuerySet):
     """
@@ -15,6 +16,9 @@ class EsQueryset(QuerySet):
     """
     MODE_SEARCH = 1
     MODE_MLT = 2
+    SCORE_FUNCTIONS = []
+
+
 
     def __init__(self, model, fuzziness=None):
         self.model = model
@@ -27,6 +31,11 @@ class EsQueryset(QuerySet):
         self.filters = {}
         self.facets_fields = None
         self.suggest_fields = None
+
+        #geo
+        lat = None
+        lng = None
+        unit = "mi"
 
         # model.Elasticsearch.ordering -> model._meta.ordering -> _score
         if hasattr(self.model.Elasticsearch, 'ordering'):
@@ -149,8 +158,8 @@ class EsQueryset(QuerySet):
         if self.filters:
             # TODO: should we add _cache = true ?!
             search['filter'] = {}
+            # search['query'] = {}
             mapping = self.model.es.get_mapping()
-            print self.filters
             for field, value in self.filters.items():
                 try:
                     value = value.lower()
@@ -203,19 +212,74 @@ class EsQueryset(QuerySet):
                     filtr = {'bool': {'must': [{'term': {
                         field_name + '.' + operator: value}}]}}
                 if is_geo:
-
                   if operator == 'lat':
                     filtr = {'geo_distance': {field_name: {'lat': value}}}
+                    self.lat = value
                   elif operator == 'lon':
                     filtr = {'geo_distance': {field_name: {'lon': value}}}
+                    self.lng = value
                   elif operator == 'distance':
                     filtr = {'geo_distance': {'distance': value}}
-                nested_update(search['filter'], filtr)
+                    self.distance = value
+                nested_update(search['filter'], filtr) # geo_distance only works as filter
 
-            body['query'] = {'filtered': search}
+            functions = False
+            for k, v in search['filter'].iteritems():
+              # right now only one geo_distance filter to score on is supported
+              if k == 'geo_distance':
+                self.geo_field_name = (key for key in v.keys()
+                              if key != 'distance').next()
+                self.geo_field = v[self.geo_field_name]
+
+                functions = [{
+                  "gauss": {self.geo_field_name: {
+                    "origin": self.geo_field,
+                    "scale": "20mi",
+                    # "offset": "2mi"
+                  }
+                  }
+                }]
+                break
+
+            if functions:
+              # todo, sort by score first then geo?... this is only needed to return distance for each result
+
+              geo = copy.copy(search['filter']['geo_distance'])
+
+              if 'bool' in search['filter']:
+                if 'must' not in search['filter']['bool']:
+                  search['filter']['bool']['must'] = []
+                search['filter']['bool']['must'].append({'geo_distance':geo})
+                del search['filter']['geo_distance']
+
+
+              body['query'] = {
+                'function_score': {
+                  'query':{
+                    'filtered': search},
+                  'functions': functions
+                  }
+              }
+
+
+              # body['sort'] = [
+              #
+              #   # {'_score': {'order': 'desc'}},
+              #   {
+              #     '_geo_distance': {
+              #       self.geo_field_name: self.geo_field,
+              #       'order': 'asc',
+              #       'unit': 'mi'
+              #     }
+              #   }
+              # ]
+
+            else:
+              body['query'] = {'filtered': search}
+
         else:
             body = search
-
+        print body
         return body
 
     @property
@@ -232,7 +296,7 @@ class EsQueryset(QuerySet):
     def do_search(self, extra_body=None):
         if self.is_evaluated:
             return self._result_cache
-
+        print "do_search"
         body = self.make_search_body()
 
         if self.facets_fields:
@@ -259,8 +323,11 @@ class EsQueryset(QuerySet):
             body['suggest'] = suggest
 
         if self.ordering:
-            body['sort'] = [{f: "asc"} if f[0] != '-' else {f[1:]: "desc"}
-                            for f in self.ordering] + ["_score"]
+            if not len(body.get('sort', [])):
+              body['sort'] = []
+            body['sort'].extend([{f: "asc"} if f[0] != '-' else {f[1:]: "desc"}
+                            for f in self.ordering] + ["_score"])
+
 
         search_params = {
             'index': self.index,
@@ -273,7 +340,8 @@ class EsQueryset(QuerySet):
 
         search_params['body'] = body
         self._body = body
-        print search_params
+        # print search_params
+        # print body
 
         if self.mode == self.MODE_MLT:
             # change include's defaults to False
@@ -300,6 +368,9 @@ class EsQueryset(QuerySet):
                 self._facets = r['aggregations']
 
         self._suggestions = r.get('suggest')
+        for e in r['hits']['hits']:
+          e['_source']['distance'] = haversine(self.lng, self.lat,
+                                               e['_source']['lng'], e['_source']['lat'])
         self._result_cache = [e['_source'] for e in r['hits']['hits']]
         self._max_score = r['hits']['max_score']
         self._total = r['hits']['total']
