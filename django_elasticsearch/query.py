@@ -18,7 +18,10 @@ class EsQueryset(QuerySet):
     MODE_MLT = 2
     SCORE_FUNCTIONS = []
 
-
+    #geo
+    lat = None
+    lng = None
+    unit = "mi"
 
     def __init__(self, model, fuzziness=None):
         self.model = model
@@ -32,10 +35,7 @@ class EsQueryset(QuerySet):
         self.facets_fields = None
         self.suggest_fields = None
 
-        #geo
-        lat = None
-        lng = None
-        unit = "mi"
+
 
         # model.Elasticsearch.ordering -> model._meta.ordering -> _score
         if hasattr(self.model.Elasticsearch, 'ordering'):
@@ -161,10 +161,16 @@ class EsQueryset(QuerySet):
             # search['query'] = {}
             mapping = self.model.es.get_mapping()
             for field, value in self.filters.items():
-                try:
-                    value = value.lower()
-                except AttributeError:
-                    pass
+
+                if (field in mapping and 'index' in mapping[field]
+                    and mapping[field]['index'] == 'not_analyzed'):
+                  # we dont want to lowercase an un-analyzed term search
+                  pass
+                else:
+                  try:
+                      value = value.lower()
+                  except AttributeError:
+                      pass
 
                 field, operator = self.sanitize_lookup(field)
 
@@ -368,9 +374,10 @@ class EsQueryset(QuerySet):
                 self._facets = r['aggregations']
 
         self._suggestions = r.get('suggest')
-        for e in r['hits']['hits']:
-          e['_source']['distance'] = haversine(self.lng, self.lat,
-                                               e['_source']['lng'], e['_source']['lat'])
+        if self.lat is not None and self.lng is not None:
+          for e in r['hits']['hits']:
+            e['_source']['distance'] = haversine(self.lng, self.lat,
+                                                 e['_source']['lng'], e['_source']['lat'])
         self._result_cache = [e['_source'] for e in r['hits']['hits']]
         self._max_score = r['hits']['max_score']
         self._total = r['hits']['total']
