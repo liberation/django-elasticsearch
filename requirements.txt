@@ -1,1 +1,1 @@
-elasticsearch
+elasticsearch==1.4.0

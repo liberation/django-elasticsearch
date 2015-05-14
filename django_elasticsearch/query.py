@@ -8,6 +8,7 @@ from django.db.models.query import REPR_OUTPUT_SIZE
 from django_elasticsearch.client import es_client
 from django_elasticsearch.utils import nested_update
 
+from helpers import haversine
 
 class EsQueryset(QuerySet):
     """
@@ -15,6 +16,12 @@ class EsQueryset(QuerySet):
     """
     MODE_SEARCH = 1
     MODE_MLT = 2
+    SCORE_FUNCTIONS = []
+
+    #geo
+    lat = None
+    lng = None
+    unit = "mi"
 
     def __init__(self, model, fuzziness=None):
         self.model = model
@@ -27,6 +34,8 @@ class EsQueryset(QuerySet):
         self.filters = {}
         self.facets_fields = None
         self.suggest_fields = None
+
+
 
         # model.Elasticsearch.ordering -> model._meta.ordering -> _score
         if hasattr(self.model.Elasticsearch, 'ordering'):
@@ -149,13 +158,19 @@ class EsQueryset(QuerySet):
         if self.filters:
             # TODO: should we add _cache = true ?!
             search['filter'] = {}
+            # search['query'] = {}
             mapping = self.model.es.get_mapping()
-
             for field, value in self.filters.items():
-                try:
-                    value = value.lower()
-                except AttributeError:
-                    pass
+
+                if (field in mapping and 'index' in mapping[field]
+                    and mapping[field]['index'] == 'not_analyzed'):
+                  # we dont want to lowercase an un-analyzed term search
+                  pass
+                else:
+                  try:
+                      value = value.lower()
+                  except AttributeError:
+                      pass
 
                 field, operator = self.sanitize_lookup(field)
 
@@ -163,6 +178,11 @@ class EsQueryset(QuerySet):
                     is_nested = 'properties' in mapping[field]
                 except KeyError:
                     is_nested = False
+                try:
+                  is_geo = 'type' in mapping[field] and mapping[field]['type'] == 'geo_point'
+                except KeyError:
+                  is_geo = False
+
 
                 field_name = is_nested and field + ".id" or field
                 if is_nested and isinstance(value, Model):
@@ -197,13 +217,75 @@ class EsQueryset(QuerySet):
                 else:
                     filtr = {'bool': {'must': [{'term': {
                         field_name + '.' + operator: value}}]}}
+                if is_geo:
+                  if operator == 'lat':
+                    filtr = {'geo_distance': {field_name: {'lat': value}}}
+                    self.lat = value
+                  elif operator == 'lon':
+                    filtr = {'geo_distance': {field_name: {'lon': value}}}
+                    self.lng = value
+                  elif operator == 'distance':
+                    filtr = {'geo_distance': {'distance': value}}
+                    self.distance = value
+                nested_update(search['filter'], filtr) # geo_distance only works as filter
 
-                nested_update(search['filter'], filtr)
+            functions = False
+            for k, v in search['filter'].iteritems():
+              # right now only one geo_distance filter to score on is supported
+              if k == 'geo_distance':
+                self.geo_field_name = (key for key in v.keys()
+                              if key != 'distance').next()
+                self.geo_field = v[self.geo_field_name]
 
-            body['query'] = {'filtered': search}
+                functions = [{
+                  "gauss": {self.geo_field_name: {
+                    "origin": self.geo_field,
+                    "scale": "20mi",
+                    # "offset": "2mi"
+                  }
+                  }
+                }]
+                break
+
+            if functions:
+              # todo, sort by score first then geo?... this is only needed to return distance for each result
+
+              geo = copy.copy(search['filter']['geo_distance'])
+
+              if 'bool' in search['filter']:
+                if 'must' not in search['filter']['bool']:
+                  search['filter']['bool']['must'] = []
+                search['filter']['bool']['must'].append({'geo_distance':geo})
+                del search['filter']['geo_distance']
+
+
+              body['query'] = {
+                'function_score': {
+                  'query':{
+                    'filtered': search},
+                  'functions': functions
+                  }
+              }
+
+
+              # body['sort'] = [
+              #
+              #   # {'_score': {'order': 'desc'}},
+              #   {
+              #     '_geo_distance': {
+              #       self.geo_field_name: self.geo_field,
+              #       'order': 'asc',
+              #       'unit': 'mi'
+              #     }
+              #   }
+              # ]
+
+            else:
+              body['query'] = {'filtered': search}
+
         else:
             body = search
-
+        print body
         return body
 
     @property
@@ -220,7 +302,7 @@ class EsQueryset(QuerySet):
     def do_search(self, extra_body=None):
         if self.is_evaluated:
             return self._result_cache
-
+        print "do_search"
         body = self.make_search_body()
 
         if self.facets_fields:
@@ -247,8 +329,11 @@ class EsQueryset(QuerySet):
             body['suggest'] = suggest
 
         if self.ordering:
-            body['sort'] = [{f: "asc"} if f[0] != '-' else {f[1:]: "desc"}
-                            for f in self.ordering] + ["_score"]
+            if not len(body.get('sort', [])):
+              body['sort'] = []
+            body['sort'].extend([{f: "asc"} if f[0] != '-' else {f[1:]: "desc"}
+                            for f in self.ordering] + ["_score"])
+
 
         search_params = {
             'index': self.index,
@@ -261,6 +346,8 @@ class EsQueryset(QuerySet):
 
         search_params['body'] = body
         self._body = body
+        # print search_params
+        # print body
 
         if self.mode == self.MODE_MLT:
             # change include's defaults to False
@@ -287,6 +374,10 @@ class EsQueryset(QuerySet):
                 self._facets = r['aggregations']
 
         self._suggestions = r.get('suggest')
+        if self.lat is not None and self.lng is not None:
+          for e in r['hits']['hits']:
+            e['_source']['distance'] = haversine(self.lng, self.lat,
+                                                 e['_source']['lng'], e['_source']['lat'])
         self._result_cache = [e['_source'] for e in r['hits']['hits']]
         self._max_score = r['hits']['max_score']
         self._total = r['hits']['total']
@@ -322,7 +413,7 @@ class EsQueryset(QuerySet):
         return clone
 
     def sanitize_lookup(self, lookup):
-        valid_operators = ['exact', 'not', 'should', 'should_not', 'range','gt', 'lt', 'gte', 'lte', 'contains', 'isnull']
+        valid_operators = ['exact', 'not', 'should', 'should_not', 'range','gt', 'lt', 'gte', 'lte', 'contains', 'isnull', 'lat', 'lon', 'distance']
         words = lookup.split('__')
         fields = [word for word in words if word not in valid_operators]
         # this is also django's default lookup type

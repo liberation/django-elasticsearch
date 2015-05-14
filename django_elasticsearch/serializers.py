@@ -1,6 +1,7 @@
 import json
 import datetime
 
+from django.db.models import Model
 from django.db.models import FieldDoesNotExist
 from django.db.models.fields.related import ManyToManyField
 
@@ -9,9 +10,11 @@ class ModelJsonSerializer(object):
     """
     Default elasticsearch serializer for a django model
     """
+    nested = False
 
     def __init__(self, model):
         self.model = model
+
 
     def serialize_field(self, instance, field_name):
         """
@@ -67,12 +70,15 @@ class ModelJsonSerializer(object):
                 pass
         return source.get(field_name)
 
-    def serialize(self, instance):
+    def _serialize(self, instance):
         model_fields = [f.name for f in instance._meta.fields]
+        model_fields.extend(instance.Elasticsearch.property_fields)
+
         fields = instance.Elasticsearch.fields or model_fields
+        exclude = set(instance.Elasticsearch.exclude)
 
         obj = dict([(field, self.serialize_field(instance, field))
-                    for field in fields])
+                    for field in fields if field not in exclude])
 
         # adding auto complete fields
         completion_fields = instance.Elasticsearch.completion_fields
@@ -81,7 +87,10 @@ class ModelJsonSerializer(object):
             # TODO: could store the value of field_name in case it does some
             # heavy processing or db requests.
             obj[suggest_name] = self.serialize_field(instance, field_name)
+        return obj
 
+    def serialize(self, instance):
+        obj = self._serialize(instance)
         return json.dumps(obj,
                           default=lambda d: (
                               d.isoformat() if isinstance(d, datetime.datetime)
@@ -110,3 +119,34 @@ class ModelJsonSerializer(object):
                 d[k] = self.deserialize_field(source, k)
 
         return d
+
+
+class NestedJsonSerializer(ModelJsonSerializer):
+    max_depth = 2
+
+    def serialize_type_foreignkey(self, instance, field_name):
+      return {}
+
+
+
+    def _serialize(self, instance, current_depth=0):
+
+        if current_depth > self.max_depth:
+            return {}
+
+        attrs = super(NestedJsonSerializer, self)._serialize(instance)
+        for related in instance.Elasticsearch.nested_fields:
+            field = getattr(instance, related)
+
+            if field is None:
+                continue
+
+            elif isinstance(field, Model):
+                # this is a FK, so field is a model instance
+                serializer = self.__class__(field)
+                attrs[related] = serializer._serialize(field, current_depth+1)
+            else:
+                serializer = self.__class__(field.model)
+                attrs[related] = [serializer._serialize(obj, current_depth+1)
+                                  for obj in field.all()]
+        return attrs
