@@ -2,7 +2,6 @@ import mock
 import json
 
 from django.test import TestCase
-from django.test.utils import override_settings
 
 from elasticsearch import TransportError
 
@@ -51,10 +50,8 @@ class EsViewTestCase(TestCase):
         self._test_list_view()
 
     def test_fallback_list_view(self):
-        # Note: in this case views responses don't match because i'm lazy
-        with mock.patch('django_elasticsearch.client.es_client.search') as mock_search:
+        with mock.patch('django_elasticsearch.query.EsQueryset.do_search') as mock_search:
             mock_search.side_effect = TransportError()
-
             response = self.client.get('/tests/')
             content = json.loads(response.content)
             self.assertEqual(len(content), 1)

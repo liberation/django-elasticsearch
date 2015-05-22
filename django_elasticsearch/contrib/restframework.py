@@ -8,7 +8,13 @@ from rest_framework.mixins import ListModelMixin
 from rest_framework.decorators import list_route
 from rest_framework.filters import OrderingFilter
 from rest_framework.filters import DjangoFilterBackend
-from rest_framework.pagination import PaginationSerializer
+try:
+    from rest_framework.pagination import PaginationSerializer
+except ImportError:
+    # TODO: restframework 3.0
+    class PaginationSerializer(object):
+        pass
+
 from rest_framework.serializers import BaseSerializer
 
 from elasticsearch import NotFoundError

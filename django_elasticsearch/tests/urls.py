@@ -1,9 +1,13 @@
 from django.conf.urls import url
 from django.conf.urls import patterns
 
+import rest_framework
+
 from django_elasticsearch.tests.models import TestModel
 from django_elasticsearch.views import ElasticsearchListView
 from django_elasticsearch.views import ElasticsearchDetailView
+from django_elasticsearch.contrib.restframework import AutoCompletionMixin
+from django_elasticsearch.contrib.restframework import IndexableModelMixin
 
 
 class TestDetailView(ElasticsearchDetailView):
@@ -20,16 +24,13 @@ urlpatterns = patterns(
     url(r'^tests/$', TestListView.as_view()),
 )
 
-try:
+
+if int(rest_framework.VERSION.split('.')[0]) < 3:
+    # TODO: make it work with rest framework 3
     from rest_framework.viewsets import ModelViewSet
     from rest_framework.routers import DefaultRouter
 
-    from django_elasticsearch.contrib.restframework import AutoCompletionMixin
-    from django_elasticsearch.contrib.restframework import IndexableModelMixin
-except ImportError:
-    pass
-else:
-    class TestViewSet(AutoCompletionMixin,IndexableModelMixin, ModelViewSet):
+    class TestViewSet(AutoCompletionMixin, IndexableModelMixin, ModelViewSet):
         model = TestModel
         filter_fields = ('username',)
         ordering_fields = ('id',)

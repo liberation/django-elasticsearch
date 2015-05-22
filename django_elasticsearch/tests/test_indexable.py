@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import json as json_serializer
+
 from elasticsearch import NotFoundError
 
 from django.test import TestCase
@@ -7,6 +9,7 @@ from django.test.utils import override_settings
 from django_elasticsearch.managers import es_client
 from django_elasticsearch.tests.utils import withattrs
 from django_elasticsearch.tests.models import TestModel
+from django_elasticsearch.tests.models import TestModelESSerializer
 from django_elasticsearch.serializers import ModelJsonSerializer
 
 
@@ -29,18 +32,27 @@ class EsIndexableTestCase(TestCase):
         super(EsIndexableTestCase, self).tearDown()
         es_client.indices.delete(index=TestModel.es.get_index())
 
-    def test_serialize(self):
+    def _serialize(self):
         json = self.instance.es.serialize()
         # Checking one by one, different types of fields
         self.assertIn('"id": %d' % self.instance.id, json)
         self.assertIn('"first_name": "woot"', json)
         self.assertIn('"last_name": "foo"', json)
-        self.assertIn('"date_joined": "%s"' % self.instance.date_joined.isoformat(), json)
+
+        return json
+
+    def test_serializer(self):
+        json = self._serialize()
+        s = self.instance.es.serializer.serialize_date_joined(self.instance, 'date_joined')
+        self.assertIn('"date_joined": %s' % json_serializer.dumps(s), json)
 
     @withattrs(TestModel.Elasticsearch, 'serializer_class',
                'django_elasticsearch.serializers.ModelJsonSerializer')
     def test_dynamic_serializer_import(self):
-        self.test_serialize()
+        self.instance.es.serializer = None  # reset cached property
+        json = self._serialize()
+        self.instance.es.serializer = None  # reset cached property
+        self.assertIn('"date_joined": "%s"' % self.instance.date_joined.isoformat(), json)
 
     def test_deserialize(self):
         instance = TestModel.es.deserialize({'username':'test'})
@@ -126,7 +138,6 @@ class EsIndexableTestCase(TestCase):
             }
         }
         # reset cache on _fields
-        TestModel.es._fields = None
         self.assertEqual(expected, TestModel.es.make_mapping())
 
     @withattrs(TestModel.Elasticsearch, 'completion_fields', ['first_name'])
@@ -140,17 +151,22 @@ class EsIndexableTestCase(TestCase):
 
     @withattrs(TestModel.Elasticsearch, 'fields', ['username', 'date_joined'])
     def test_get_mapping(self):
+        TestModel.es._mapping = None
         TestModel.es.flush()
         TestModel.es.do_update()
 
         expected = {
-            'username': {u'index': u'not_analyzed', u'type': u'string'},
-            'date_joined': {u'type': u'date', u'format': u'dateOptionalTime'}
+            u'username': {u'index': u'not_analyzed', u'type': u'string'},
+            u'date_joined': {u'properties': {
+                u'iso': {u'format': u'dateOptionalTime', u'type': u'date'},
+                u'date': {u'type': u'string'},
+                u'time': {u'type': u'string'}
+            }}
         }
 
-        # reset the eventual cache on the Model mapping
-        TestModel.es._mapping = None
+        # Reset the eventual cache on the Model mapping
         mapping = TestModel.es.get_mapping()
+        TestModel.es._mapping = None
         self.assertEqual(expected, mapping)
 
     def test_get_settings(self):

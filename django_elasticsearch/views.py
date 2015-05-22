@@ -3,8 +3,8 @@ import json
 from django.http import Http404
 from django.http import HttpResponse
 from django.views.generic import View
-from django.views.generic.list import BaseListView
-from django.views.generic.detail import BaseDetailView
+from django.views.generic import ListView
+from django.views.generic import DetailView
 from django.core import serializers
 
 from elasticsearch import NotFoundError
@@ -35,7 +35,7 @@ class ElasticsearchView(View):
             return self.queryset or self.model.es.all()
 
 
-class ElasticsearchListView(ElasticsearchView, BaseListView):
+class ElasticsearchListView(ElasticsearchView, ListView):
 
     def get(self, context, *args, **kwargs):
         qs = self.get_queryset()
@@ -57,7 +57,7 @@ class ElasticsearchListView(ElasticsearchView, BaseListView):
         return HttpResponse(content, content_type='application/json')
 
 
-class ElasticsearchDetailView(ElasticsearchView, BaseDetailView):
+class ElasticsearchDetailView(ElasticsearchView, DetailView):
 
     def serialize(self, qs):
         s = super(ElasticsearchDetailView, self).serialize(qs)

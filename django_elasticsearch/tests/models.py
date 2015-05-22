@@ -4,9 +4,8 @@ from django_elasticsearch.serializers import ModelJsonSerializer
 
 
 class TestModelESSerializer(ModelJsonSerializer):
-    def serialize_last_login(self, instance, field_name):
+    def serialize_date_joined(self, instance, field_name):
         d = getattr(instance, field_name)
-
         # a rather typical api output
         return {
             'iso': d.isoformat(),
@@ -14,7 +13,7 @@ class TestModelESSerializer(ModelJsonSerializer):
             'time': d.time().isoformat()[:5]
         }
 
-    def deserialize_last_login(self, source, field_name):
+    def deserialize_date_joined(self, source, field_name):
         try:
             return source[field_name]['iso']
         except KeyError:
@@ -34,12 +33,12 @@ class TestModel(User, EsIndexable):
         doc_type = 'test-doc-type'
         mappings = {
             "username": {"index": "not_analyzed"},
-            "last_login": {"type": "object",
-                           "properties": {
-                               "iso": {"type": "date"},
-                               "date": {"type": "string"},
-                               "time": {"type": "string"}
-                           }}
+            "date_joined": {"type": "object",
+                            "properties": {
+                                "iso": {"type": "date"},
+                                "date": {"type": "string"},
+                                "time": {"type": "string"}
+                            }}
         }
         serializer_class = TestModelESSerializer
 

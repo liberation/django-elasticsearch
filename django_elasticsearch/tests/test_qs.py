@@ -36,13 +36,10 @@ class EsQuerysetTestCase(TestCase):
                                            last_login=datetime.now() + timedelta(seconds=3),
                                            date_joined=datetime.now() + timedelta(seconds=3))
 
-        # django 1.7 seems to handle settings differently than previous version
-        # which make the override of ELASTICSEARCH_AUTO_INDEX actually work
-        if django.VERSION[1] <= 7:
-            self.t1.es.do_index()
-            self.t2.es.do_index()
-            self.t3.es.do_index()
-            self.t4.es.do_index()
+        self.t1.es.do_index()
+        self.t2.es.do_index()
+        self.t3.es.do_index()
+        self.t4.es.do_index()
 
         TestModel.es.do_update()
 
@@ -205,23 +202,23 @@ class EsQuerysetTestCase(TestCase):
         self.assertFalse(self.t1 in contents)
 
     def test_sub_object_lookup(self):
-        qs = TestModel.es.all().filter(last_login__iso=self.t1.last_login)
+        qs = TestModel.es.all().filter(date_joined__iso=self.t1.date_joined)
         contents = qs.deserialize()
         self.assertEqual(qs.count(), 1)
         self.assertTrue(self.t1 in contents)
 
-        qs = TestModel.es.all().filter(last_login__iso__isnull=False)
+        qs = TestModel.es.all().filter(date_joined__iso__isnull=False)
         contents = qs.deserialize()
         self.assertEqual(qs.count(), 4)
 
     def test_sub_object_nested_lookup(self):
-        qs = TestModel.es.all().filter(last_login__iso=self.t1.last_login)
+        qs = TestModel.es.all().filter(date_joined__iso=self.t1.date_joined)
         contents = qs.deserialize()
         self.assertTrue(qs.count(), 1)
         self.assertTrue(self.t1 in contents)
 
     def test_filter_date_range(self):
-        qs = TestModel.es.queryset.filter(date_joined__gte=self.t2.date_joined)
+        qs = TestModel.es.queryset.filter(date_joined__iso__gte=self.t2.date_joined.isoformat())
         contents = qs.deserialize()
         self.assertTrue(self.t1 not in contents)
         self.assertTrue(self.t2 in contents)

@@ -7,6 +7,5 @@ es_client = Elasticsearch(getattr(settings,
                                   'ELASTICSEARCH_URL',
                                   'http://localhost:9200'),
                           **getattr(settings,
-                                   'ELASTICSEARCH_CONNECTION_KWARGS',
-                                   {})
-                         )
+                                    'ELASTICSEARCH_CONNECTION_KWARGS',
+                                    {}))

@@ -4,8 +4,8 @@ DEBUG = False
 TEMPLATE_DEBUG = DEBUG
 
 REST_FRAMEWORK = {}
-TEST_RUNNER = 'django.test.simple.DjangoTestSuiteRunner'
-ELASTICSEARCH_AUTO_INDEX=False
+
+ELASTICSEARCH_AUTO_INDEX = False
 ELASTICSEARCH_SETTINGS = {
     # better tests performance
     "number_of_shards": 1,
@@ -129,7 +129,7 @@ INSTALLED_APPS = (
     'django.contrib.sites',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
+    'django_extensions',
     'django_elasticsearch'
 
     # Uncomment the next line to enable the admin:
