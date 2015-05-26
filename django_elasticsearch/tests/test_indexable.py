@@ -178,8 +178,8 @@ class EsIndexableTestCase(TestCase):
     @withattrs(TestModel.Elasticsearch, 'fields', ['first_name', 'last_name'])
     def test_custom_fields(self):
         json = self.instance.es.serialize()
-        expected = '{"first_name": "woot", "last_name": "foo"}'
-        self.assertEqual(json, expected)
+        expected = {"first_name": "woot", "last_name": "foo"}
+        self.assertEqual(json_serializer.loads(json), expected)
 
     def test_custom_serializer(self):
         old_serializer = self.instance.es.serializer
