@@ -36,6 +36,7 @@ class EsQueryset(QuerySet):
         self.fuzziness = fuzziness
         self.ndx = None
         self._query = ''
+        self._deserialize = False
 
         self._start = 0
         self._stop = None
@@ -100,6 +101,7 @@ class EsQueryset(QuerySet):
         if type(ndx) is slice:
             return self._result_cache
         elif type(ndx) is int:
+            # Note: 0 because we only fetch the right one
             return self._result_cache[0]
 
     def __contains__(self, val):
@@ -120,11 +122,15 @@ class EsQueryset(QuerySet):
         # if we pass a body without a query, elasticsearch complains
         if self._total:
             return self._total
-        r = es_client.count(
-            index=self.index,
-            doc_type=self.doc_type,
-            body=self.make_search_body() or None)
-        self._total = r['count']
+        if self.mode == self.MODE_MLT:
+            # Note: there is no count on the mlt api, need to fetch the results
+            self.do_search()
+        else:
+            r = es_client.count(
+                index=self.index,
+                doc_type=self.doc_type,
+                body=self.make_search_body() or None)
+            self._total = r['count']
         return self._total
 
     def make_search_body(self):
@@ -264,7 +270,7 @@ class EsQueryset(QuerySet):
 
         if self.mode == self.MODE_MLT:
             # change include's defaults to False
-            # search_params['include'] = self.mlt_kwargs.pop('include', False)
+            search_params['include'] = self.mlt_kwargs.pop('include', False)
             # update search params names
             for param in ['type', 'indices', 'types', 'scroll', 'size', 'from']:
                 if param in search_params:
@@ -287,8 +293,13 @@ class EsQueryset(QuerySet):
                 self._facets = r['aggregations']
 
         self._suggestions = r.get('suggest')
-        self._result_cache = [e['_source'] for e in r['hits']['hits']]
+        if self._deserialize:
+            self._result_cache = [self.model.es.deserialize(e['_source'])
+                                  for e in r['hits']['hits']]
+        else:
+            self._result_cache = [e['_source'] for e in r['hits']['hits']]
         self._max_score = r['hits']['max_score']
+
         self._total = r['hits']['total']
         return self
 
@@ -417,4 +428,5 @@ class EsQueryset(QuerySet):
         return self.__len__()
 
     def deserialize(self):
-        return self.model.es.deserialize(self)
+        self._deserialize = True
+        return self
