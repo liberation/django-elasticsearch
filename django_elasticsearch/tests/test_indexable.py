@@ -91,10 +91,9 @@ class EsIndexableTestCase(TestCase):
             self.instance.es.get()
 
     def test_mlt(self):
-        q = self.instance.es.mlt(mlt_fields=['first_name',], size=10, min_term_freq=1, min_doc_freq=1)
-        results = q.deserialize()
+        qs = self.instance.es.mlt(mlt_fields=['first_name',], min_term_freq=1, min_doc_freq=1)
+        self.assertEqual(len(qs), 0)
 
-        self.assertEqual(len(results), 0)
         a = TestModel.objects.create(username=u"2", first_name=u"woot", last_name=u"foo fooo")
         a.es.do_index()
         a.es.do_update()

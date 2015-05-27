@@ -47,8 +47,7 @@ class EsQuerysetTestCase(TestCase):
         es_client.indices.delete(index=TestModel.es.get_index())
 
     def test_all(self):
-        qs = TestModel.es.all()
-        contents = qs.deserialize()
+        contents = TestModel.es.search("").deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 in contents)
@@ -59,9 +58,7 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(self.t1, content)
 
     def test_repr(self):
-        # TODO: False positive !! the .deserialize method evaluates the query
-        qs = TestModel.es.queryset.order_by('id')
-        contents = str(qs.deserialize())
+        contents = str(TestModel.es.queryset.order_by('id').deserialize())
         expected = str(TestModel.objects.all())
         self.assertEqual(contents, expected)
 
@@ -129,8 +126,7 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(q.count(), 1)
 
     def test_ordering(self):
-        qs = TestModel.es.queryset.order_by('username')
-        contents = qs.deserialize()
+        contents = TestModel.es.queryset.order_by('username').deserialize()
         self.assertEqual(contents[0], self.t3)
         self.assertEqual(contents[1], self.t4)
         self.assertEqual(contents[2], self.t2)
@@ -151,52 +147,45 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(contents[3], self.t1)
 
     def test_filtering(self):
-        qs = TestModel.es.all().filter(last_name=u"Smith")
-        contents = qs.deserialize()
+        contents = TestModel.es.filter(last_name=u"Smith").deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 not in contents)
 
     def test_multiple_filter(self):
-        qs = TestModel.es.queryset.filter(last_name=u"Smith", first_name=u"jack")
-        contents = qs.deserialize()
+        contents = TestModel.es.filter(last_name=u"Smith", first_name=u"jack").deserialize()
         self.assertTrue(self.t1 not in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 not in contents)
         self.assertTrue(self.t4 not in contents)
 
     def test_filter_range(self):
-        qs = TestModel.es.queryset.filter(id__gt=self.t2.id)
-        contents = qs.deserialize()
+        contents = TestModel.es.filter(id__gt=self.t2.id).deserialize()
         self.assertTrue(self.t1 not in contents)
         self.assertTrue(self.t2 not in contents)
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 in contents)
 
-        qs = TestModel.es.queryset.filter(id__lt=self.t2.id)
-        contents = qs.deserialize()
+        contents = TestModel.es.filter(id__lt=self.t2.id).deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 not in contents)
         self.assertTrue(self.t3 not in contents)
         self.assertTrue(self.t4 not in contents)
 
-        qs = TestModel.es.queryset.filter(id__gte=self.t2.id)
-        contents = qs.deserialize()
+        contents = TestModel.es.filter(id__gte=self.t2.id).deserialize()
         self.assertTrue(self.t1 not in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 in contents)
 
-        qs = TestModel.es.queryset.filter(id__lte=self.t2.id)
-        contents = qs.deserialize()
+        contents = TestModel.es.filter(id__lte=self.t2.id).deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 not in contents)
         self.assertTrue(self.t4 not in contents)
 
-        qs = TestModel.es.queryset.filter(id__range=(self.t2.id, self.t3.id))
-        contents = qs.deserialize()
+        contents = TestModel.es.filter(id__range=(self.t2.id, self.t3.id)).deserialize()
         self.assertTrue(self.t1 not in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 in contents)
@@ -204,43 +193,36 @@ class EsQuerysetTestCase(TestCase):
 
     def test_isnull_lookup(self):
         # Note: it works because we serialize empty string emails to the null value
-        qs = TestModel.es.all().filter(email__isnull=False)
-        contents = qs.deserialize()
+        qs = TestModel.es.filter(email__isnull=False).deserialize()
         self.assertEqual(qs.count(), 1)
-        self.assertTrue(self.t1 in contents)
+        self.assertTrue(self.t1 in qs)
 
-        qs = TestModel.es.all().exclude(email__isnull=False)
-        contents = qs.deserialize()
+        qs = TestModel.es.exclude(email__isnull=False).deserialize()
         self.assertEqual(qs.count(), 3)
-        self.assertFalse(self.t1 in contents)
+        self.assertFalse(self.t1 in qs)
 
     def test_sub_object_lookup(self):
-        qs = TestModel.es.all().filter(date_joined__iso=self.t1.date_joined)
-        contents = qs.deserialize()
+        qs = TestModel.es.filter(date_joined__iso=self.t1.date_joined).deserialize()
         self.assertEqual(qs.count(), 1)
-        self.assertTrue(self.t1 in contents)
+        self.assertTrue(self.t1 in qs)
 
-        qs = TestModel.es.all().filter(date_joined__iso__isnull=False)
-        contents = qs.deserialize()
+        qs = TestModel.es.filter(date_joined__iso__isnull=False)
         self.assertEqual(qs.count(), 4)
 
     def test_sub_object_nested_lookup(self):
-        qs = TestModel.es.all().filter(date_joined__iso=self.t1.date_joined)
-        contents = qs.deserialize()
+        qs = TestModel.es.filter(date_joined__iso=self.t1.date_joined).deserialize()
         self.assertTrue(qs.count(), 1)
-        self.assertTrue(self.t1 in contents)
+        self.assertTrue(self.t1 in qs)
 
     def test_filter_date_range(self):
-        qs = TestModel.es.queryset.filter(date_joined__iso__gte=self.t2.date_joined.isoformat())
-        contents = qs.deserialize()
+        contents = TestModel.es.queryset.filter(date_joined__iso__gte=self.t2.date_joined.isoformat()).deserialize()
         self.assertTrue(self.t1 not in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 in contents)
 
     def test_excluding(self):
-        qs = TestModel.es.queryset.exclude(username=u"woot")
-        contents = qs.deserialize()
+        contents = TestModel.es.exclude(username=u"woot").deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 not in contents)
         self.assertTrue(self.t3 in contents)
@@ -254,37 +236,32 @@ class EsQuerysetTestCase(TestCase):
         self.assertTrue(self.t4 not in contents)
 
     def test_excluding_lookups(self):
-        qs = TestModel.es.queryset.exclude(id__gt=self.t2.id)
-        contents = qs.deserialize()
+        contents = TestModel.es.exclude(id__gt=self.t2.id).deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 not in contents)
         self.assertTrue(self.t4 not in contents)
 
-        qs = TestModel.es.queryset.exclude(id__lt=self.t2.id)
-        contents = qs.deserialize()
+        contents = TestModel.es.exclude(id__lt=self.t2.id).deserialize()
         self.assertTrue(self.t1 not in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 in contents)
 
-        qs = TestModel.es.queryset.exclude(id__gte=self.t2.id)
-        contents = qs.deserialize()
+        contents = TestModel.es.exclude(id__gte=self.t2.id).deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 not in contents)
         self.assertTrue(self.t3 not in contents)
         self.assertTrue(self.t4 not in contents)
 
-        qs = TestModel.es.queryset.exclude(id__lte=self.t2.id)
-        contents = qs.deserialize()
+        contents = TestModel.es.exclude(id__lte=self.t2.id).deserialize()
         self.assertTrue(self.t1 not in contents)
         self.assertTrue(self.t2 not in contents)
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 in contents)
 
     def test_chain_filter_exclude(self):
-        qs = TestModel.es.queryset.filter(last_name=u"Smith").exclude(username=u"woot")
-        contents = qs.deserialize()
+        contents = TestModel.es.filter(last_name=u"Smith").exclude(username=u"woot").deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 not in contents)  # excluded
         self.assertTrue(self.t3 in contents)
@@ -298,8 +275,7 @@ class EsQuerysetTestCase(TestCase):
         TestModel.es.flush()  # update the mapping, username is now analyzed
         import time
         time.sleep(2)  # flushing is not immediate :(
-        qs = TestModel.es.queryset.filter(username__contains='woot')  # smith@host.com
-        contents = qs.deserialize()
+        contents = TestModel.es.filter(username__contains='woot').deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 not in contents)
