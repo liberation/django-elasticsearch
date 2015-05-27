@@ -168,13 +168,6 @@ class ElasticsearchManager():
     def queryset(self):
         return EsQueryset(self.model)
 
-    def all(self):
-        """
-        Convenience method,
-        proxy to an empty search.
-        """
-        return self.search("")
-
     def search(self, query,
                facets=None, facets_limit=None, global_facets=True,
                suggest_fields=None, suggest_limit=None,
@@ -211,6 +204,19 @@ class ElasticsearchManager():
             q = q.suggest(fields=suggest_fields, limit=suggest_limit)
 
         return q.query(query)
+
+    # Convenience methods
+    def all(self):
+        """
+        proxy to an empty search.
+        """
+        return self.search("")
+
+    def filter(self, **kwargs):
+        return self.queryset.filter(**kwargs)
+
+    def exclude(self, **kwargs):
+        return self.queryset.exclude(**kwargs)
 
     def complete(self, field_name, query):
         """
