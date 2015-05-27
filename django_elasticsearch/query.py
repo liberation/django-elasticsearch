@@ -46,10 +46,6 @@ class EsQueryset(QuerySet):
         self._result_cache = []  # store
         self._total = None
 
-    def __getstate__(self):
-        obj_dict = self.__dict__.copy()
-        return obj_dict
-
     def __deepcopy__(self, memo):
         """
         Deep copy of a QuerySet doesn't populate the cache
@@ -162,6 +158,7 @@ class EsQueryset(QuerySet):
                 try:
                     is_nested = 'properties' in mapping[field]
                 except KeyError:
+                    # abstract
                     is_nested = False
 
                 field_name = is_nested and field + ".id" or field
@@ -174,7 +171,7 @@ class EsQueryset(QuerySet):
                 elif operator == 'not':
                     filtr = {'bool': {'must_not': [{'term': {field_name: value}}]}}
 
-                elif operator in ['should', 'should_not']:
+                elif operator == 'should':
                     filtr = {'bool': {operator: [{'term': {field_name: value}}]}}
 
                 elif operator == 'contains':
@@ -212,10 +209,8 @@ class EsQueryset(QuerySet):
 
     @property
     def response(self):
-        if not self.is_evaluated:
-            raise AttributeError(u"EsQueryset must be evaluated before accessing elasticsearch's response.")
-        else:
-            return self._response
+        self.do_search()
+        return self._response
 
     def do_search(self, extra_body=None):
         if self.is_evaluated:
@@ -243,7 +238,7 @@ class EsQueryset(QuerySet):
                 suggest[field_name] = {"text": self._query,
                                        "term": {"field": field_name}}
                 if self.suggest_limit:
-                    suggest[field_name]["text"]["term"]["size"] = self.suggest_limit
+                    suggest[field_name]["term"]["size"] = self.suggest_limit
             body['suggest'] = suggest
 
         if self.ordering:
@@ -266,10 +261,10 @@ class EsQueryset(QuerySet):
             # change include's defaults to False
             # search_params['include'] = self.mlt_kwargs.pop('include', False)
             # update search params names
+            search_params.update(self.mlt_kwargs)
             for param in ['type', 'indices', 'types', 'scroll', 'size', 'from']:
                 if param in search_params:
                     search_params['search_{0}'.format(param)] = search_params.pop(param)
-            search_params.update(self.mlt_kwargs)
             r = es_client.mlt(**search_params)
         else:
             if 'from' in search_params:
@@ -322,7 +317,7 @@ class EsQueryset(QuerySet):
         return clone
 
     def sanitize_lookup(self, lookup):
-        valid_operators = ['exact', 'not', 'should', 'should_not', 'range','gt', 'lt', 'gte', 'lte', 'contains', 'isnull']
+        valid_operators = ['exact', 'not', 'should', 'range','gt', 'lt', 'gte', 'lte', 'contains', 'isnull']
         words = lookup.split('__')
         fields = [word for word in words if word not in valid_operators]
         # this is also django's default lookup type
@@ -343,8 +338,6 @@ class EsQueryset(QuerySet):
                 filters['{0}__not'.format(field)] = value
             elif operator == 'not':
                 filters[field] = value
-            elif operator == 'should':
-                filters['{0}__should_not'.format(field)] = value
             elif operator in ['gt', 'gte', 'lt', 'lte']:
                 inverse_map = {'gt': 'lte', 'gte': 'lt', 'lt': 'gte', 'lte': 'gt'}
                 filters['{0}__{1}'.format(field, inverse_map[operator])] = value

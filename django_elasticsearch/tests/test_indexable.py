@@ -9,7 +9,6 @@ from django.test.utils import override_settings
 from django_elasticsearch.managers import es_client
 from django_elasticsearch.tests.utils import withattrs
 from django_elasticsearch.tests.models import TestModel
-from django_elasticsearch.tests.models import TestModelESSerializer
 from django_elasticsearch.serializers import ModelJsonSerializer
 
 
@@ -54,10 +53,32 @@ class EsIndexableTestCase(TestCase):
         self.instance.es.serializer = None  # reset cached property
         self.assertIn('"date_joined": "%s"' % self.instance.date_joined.isoformat(), json)
 
+    @withattrs(TestModel.Elasticsearch, 'fields', ['favorite_color',])
+    @withattrs(TestModel.Elasticsearch, 'mappings', {"favorite_color": {"type": "string"}})
+    def test_abstract_field(self):
+        TestModel.es.flush()
+        r = self.instance.es.get()
+        self.assertEqual(r, {'favorite_color': self.instance.favorite_color})
+
     def test_deserialize(self):
         instance = TestModel.es.deserialize({'username':'test'})
         self.assertEqual(instance.username, 'test')
         self.assertRaises(ValueError, instance.save)
+
+    def test_needs_instance(self):
+        with self.assertRaises(AttributeError):
+            TestModel.es.do_index()
+
+    def test_check_cluster(self):
+        self.assertEqual(TestModel.es.check_cluster(), True)
+
+    def test_get_api(self):
+        self.assertEqual(self.instance.es.get(),
+                         TestModel.es.get(pk=self.instance.pk),
+                         TestModel.es.get(id=self.instance.pk))
+
+        with self.assertRaises(AttributeError):
+            TestModel.es.get()
 
     def test_do_index(self):
         self.instance.es.do_index()
@@ -70,7 +91,7 @@ class EsIndexableTestCase(TestCase):
             self.instance.es.get()
 
     def test_mlt(self):
-        q = self.instance.es.mlt(mlt_fields=['first_name',], min_term_freq=1, min_doc_freq=1)
+        q = self.instance.es.mlt(mlt_fields=['first_name',], size=10, min_term_freq=1, min_doc_freq=1)
         results = q.deserialize()
 
         self.assertEqual(len(results), 0)
@@ -214,4 +235,10 @@ class EsIndexableTestCase(TestCase):
             'db': u'pouet'
             }
         }
+
         self.assertEqual(self.instance.es.diff(), expected)
+        self.assertEqual(self.instance.es.diff(source=self.instance.es.get()), {})
+
+        # force diff to reload from db
+        deserialized = TestModel.es.all().deserialize()[0]
+        self.assertEqual(deserialized.es.diff(), {})

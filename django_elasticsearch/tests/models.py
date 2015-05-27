@@ -4,6 +4,9 @@ from django_elasticsearch.serializers import ModelJsonSerializer
 
 
 class TestModelESSerializer(ModelJsonSerializer):
+    def serialize_favorite_color(self, instance, field_name):
+        return getattr(instance, field_name)
+
     def serialize_date_joined(self, instance, field_name):
         d = getattr(instance, field_name)
         # a rather typical api output
@@ -41,6 +44,10 @@ class TestModel(User, EsIndexable):
                             }}
         }
         serializer_class = TestModelESSerializer
+
+    @property
+    def favorite_color(self):
+        return 'red'
 
     class Meta:
         proxy = True
