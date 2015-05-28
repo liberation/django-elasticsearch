@@ -197,10 +197,6 @@ class EsQueryset(QuerySet):
                     else:
                         filtr = {'exists': {'field': field_name}}
 
-                else:
-                    filtr = {'bool': {'must': [{'term': {
-                        field_name + '.' + operator: value}}]}}
-
                 nested_update(search['filter'], filtr)
 
             body['query'] = {'filtered': search}
