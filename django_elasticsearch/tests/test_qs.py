@@ -1,3 +1,4 @@
+import time
 import mock
 from datetime import datetime, timedelta
 
@@ -7,7 +8,8 @@ from django.test.utils import override_settings
 from django_elasticsearch.client import es_client
 from django_elasticsearch.managers import EsQueryset
 from django_elasticsearch.tests.utils import withattrs
-from django_elasticsearch.tests.models import TestModel
+
+from test_app.models import TestModel
 
 
 class EsQuerysetTestCase(TestCase):
@@ -188,21 +190,28 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(qs.count(), 3)
         self.assertFalse(self.t1 in qs)
 
+    @withattrs(TestModel.Elasticsearch, 'fields', ['id', 'date_joined_exp'])
     def test_sub_object_lookup(self):
-        qs = TestModel.es.filter(date_joined__iso=self.t1.date_joined).deserialize()
+        TestModel.es._fields = None
+        TestModel.es._mapping = None
+        TestModel.es.flush()  # update the mapping
+        time.sleep(2)
+
+        qs = TestModel.es.filter(date_joined_exp__iso=self.t1.date_joined).deserialize()
         self.assertEqual(qs.count(), 1)
         self.assertTrue(self.t1 in qs)
 
-        qs = TestModel.es.filter(date_joined__iso__isnull=False)
+        qs = TestModel.es.filter(date_joined_exp__iso__isnull=False)
         self.assertEqual(qs.count(), 4)
 
-    def test_sub_object_nested_lookup(self):
-        qs = TestModel.es.filter(date_joined__iso=self.t1.date_joined).deserialize()
-        self.assertTrue(qs.count(), 1)
-        self.assertTrue(self.t1 in qs)
-
+    @withattrs(TestModel.Elasticsearch, 'fields', ['id', 'date_joined_exp'])
     def test_filter_date_range(self):
-        contents = TestModel.es.queryset.filter(date_joined__iso__gte=self.t2.date_joined.isoformat()).deserialize()
+        TestModel.es._fields = None
+        TestModel.es._mapping = None
+        TestModel.es.flush()  # update the mapping
+        time.sleep(2)
+
+        contents = TestModel.es.filter(date_joined_exp__iso__gte=self.t2.date_joined.isoformat()).deserialize()
         self.assertTrue(self.t1 not in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 in contents)
@@ -242,7 +251,7 @@ class EsQuerysetTestCase(TestCase):
 
     def test_chain_filter_exclude(self):
         contents = TestModel.es.filter(last_name=u"Smith").exclude(username=u"woot").deserialize()
-        self.assertTrue(self.t1 in contents)
+        self.assertTrue(self.t1 in contents)  # note: it works because username is "not analyzed"
         self.assertTrue(self.t2 not in contents)  # excluded
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 not in contents)  # not a Smith
@@ -253,8 +262,7 @@ class EsQuerysetTestCase(TestCase):
         TestModel.es._fields = None
         TestModel.es._mapping = None
         TestModel.es.flush()  # update the mapping, username is now analyzed
-        import time
-        time.sleep(2)  # flushing is not immediate :(
+        time.sleep(2)  # TODO: flushing is not immediate, find a better way
         contents = TestModel.es.filter(username__contains='woot').deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 in contents)

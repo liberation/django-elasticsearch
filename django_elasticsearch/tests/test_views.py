@@ -6,7 +6,8 @@ from django.test import TestCase
 from elasticsearch import TransportError
 
 from django_elasticsearch.managers import es_client
-from django_elasticsearch.tests.models import TestModel
+
+from test_app.models import TestModel
 
 
 class EsViewTestCase(TestCase):
