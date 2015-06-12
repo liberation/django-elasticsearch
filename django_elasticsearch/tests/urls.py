@@ -3,11 +3,12 @@ from django.conf.urls import patterns
 
 import rest_framework
 
-from django_elasticsearch.tests.models import TestModel
 from django_elasticsearch.views import ElasticsearchListView
 from django_elasticsearch.views import ElasticsearchDetailView
 from django_elasticsearch.contrib.restframework import AutoCompletionMixin
 from django_elasticsearch.contrib.restframework import IndexableModelMixin
+
+from test_app.models import TestModel
 
 
 class TestDetailView(ElasticsearchDetailView):

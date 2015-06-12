@@ -1,11 +1,13 @@
+from datetime import datetime
+
 from django.db import models
 from django.contrib.auth.models import User
 
 from django_elasticsearch.models import EsIndexable
-from django_elasticsearch.serializers import ModelJsonSerializer
+from django_elasticsearch.serializers import EsJsonSerializer
 
 
-class TestSerializer(ModelJsonSerializer):
+class TestSerializer(EsJsonSerializer):
     # Note: i want this field to be null instead of u''
     def serialize_email(self, instance, field_name):
         val = getattr(instance, field_name)
@@ -34,11 +36,11 @@ class TestModel(User, EsIndexable):
         ordering = ('id',)
 
 
-class Dummy(EsIndexable):
+class Dummy(models.Model):
     foo = models.CharField(max_length=256, null=True)
 
 
-class Test2Serializer(ModelJsonSerializer):
+class Test2Serializer(EsJsonSerializer):
     def serialize_type_datetimefield(self, instance, field_name):
         d = getattr(instance, field_name)
         # a rather typical api output
@@ -48,11 +50,18 @@ class Test2Serializer(ModelJsonSerializer):
             'time': d and d.time().isoformat()[:5]
         }
 
+    def deserialize_type_datetimefield(self, instance, field_name):
+        return datetime.strptime(instance.get(field_name)['iso'],
+                                 '%Y-%m-%dT%H:%M:%S.%f')
+
     def serialize_abstract_method(self, instance, field_name):
         return 'woot'
 
     def serialize_bigint(self, instance, field_name):
         return 42
+
+    def deserialize_bigint(self, source, field_name):
+        return 45
 
 
 class Test2Model(EsIndexable):

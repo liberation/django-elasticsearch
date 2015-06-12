@@ -3,13 +3,13 @@ from django.test import TestCase
 from django_elasticsearch.utils import dict_depth
 from django_elasticsearch.managers import es_client
 from django_elasticsearch.tests.utils import withattrs
-from django_elasticsearch.serializers import ModelJsonSerializer
+from django_elasticsearch.serializers import EsJsonSerializer
 
 from test_app.models import Dummy
 from test_app.models import Test2Model
 
 
-class CustomSerializer(ModelJsonSerializer):
+class CustomSerializer(EsJsonSerializer):
     def serialize_char(self, instance, field_name):
         return u'FOO'
 
@@ -36,7 +36,7 @@ class EsJsonSerializerTestCase(TestCase):
         self.assertTrue(isinstance(obj, basestring))
 
     @withattrs(Test2Model.Elasticsearch, 'serializer_class',
-               'django_elasticsearch.serializers.ModelJsonSerializer')
+               'django_elasticsearch.serializers.EsJsonSerializer')
     def test_dynamic_serializer_import(self):
         obj = self.instance.es.serialize()
         self.assertTrue(isinstance(obj, basestring))
@@ -90,12 +90,18 @@ class EsJsonSerializerTestCase(TestCase):
     def test_specific_field_method(self):
         serializer = Test2Model.es.get_serializer()
         obj = serializer.format(self.instance)
-        self.assertTrue(obj["bigint"], 42)
+        self.assertEqual(obj["bigint"], 42)
+
+        instance = Test2Model.es.deserialize(obj)
+        self.assertEqual(instance.bigint, 45)
 
     def test_type_specific_field_method(self):
         serializer = Test2Model.es.get_serializer()
         obj = serializer.format(self.instance)
         self.assertTrue(type(obj["datetf"]) is dict)
+
+        instance = Test2Model.es.deserialize({"datetf": obj["datetf"]})
+        self.assertEqual(instance.datetf, self.instance.datetf)
 
 
 class EsTemplateSerializerTestCase(TestCase):

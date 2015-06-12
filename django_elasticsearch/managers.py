@@ -108,15 +108,11 @@ class ElasticsearchManager():
         """
         serializer = self.get_serializer()
 
-        def instanciate(e):
-            instance = self.model(**serializer.deserialize(e))
-            instance._is_es_deserialized = True
-            return instance
-
         if isinstance(source, EsQueryset):
-            return [instanciate(e) for e in source]
+            # Note: generator ?
+            return [serializer.deserialize(e) for e in source]
         else:
-            return instanciate(source)
+            return serializer.deserialize(source)
 
     @needs_instance
     def do_index(self):

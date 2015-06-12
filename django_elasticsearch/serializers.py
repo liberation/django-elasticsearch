@@ -5,11 +5,88 @@ from django.db.models import FieldDoesNotExist
 from django.db.models.fields.related import ManyToManyField
 
 
-class ModelJsonSerializer(object):
+class EsSerializer(object):
+    def serialize(self, instance):
+        raise NotImplementedError()
+
+    def deserialize(self, source):
+        raise NotImplementedError()
+
+
+class EsDbMixin(object):
     """
-    Default elasticsearch serializer for a django model
+    Very Naive mixin that deserialize to models
+    by doing a db query using ids in the queryset
     """
 
+    def deserialize(self, source):
+        pk_field = self.model._meta.auto_field
+        ids = [e[pk_field] for e in source]
+        return self.model.objects.filter(**{pk_field + '__in': ids})
+
+
+class EsJsonToModelMixin(object):
+    """
+    Serializer mixin that attempts to instanciate the model
+    from the json elasticsearch source
+    (and disables db operations on the model).
+    """
+
+    def instanciate(self, attrs):
+        instance = self.model(**attrs)
+        instance._is_es_deserialized = True
+        return instance
+
+    def nested_deserialize(self, field, source):
+        # check for Elasticsearch.serializer on the related model
+        if source:
+            if hasattr(field.rel.to, 'Elasticsearch'):
+                serializer = field.rel.to.es.get_serializer()
+                obj = serializer.deserialize(source)
+                return obj
+            elif 'id' in source and 'value' in source:
+                # id/value fallback
+                return field.rel.to.objects.get(pk=source.get('id'))
+
+    def deserialize_field(self, source, field_name):
+        method_name = 'deserialize_{0}'.format(field_name)
+        if hasattr(self, method_name):
+            return getattr(self, method_name)(source, field_name)
+
+        field = self.model._meta.get_field(field_name)
+
+        field_type_method_name = 'deserialize_type_{0}'.format(
+            field.__class__.__name__.lower())
+        if hasattr(self, field_type_method_name):
+            return getattr(self, field_type_method_name)(source, field_name)
+
+        if field.rel:
+            # M2M
+            if isinstance(field, ManyToManyField):
+                raise AttributeError
+
+            # FK, OtO
+            return self.nested_deserialize(field, source.get(field_name))
+
+        return source.get(field_name)
+
+    def deserialize(self, source):
+        """
+        Returns a model instance
+        """
+        attrs = {}
+        for k, v in source.iteritems():
+            try:
+                attrs[k] = self.deserialize_field(source, k)
+            except (AttributeError, FieldDoesNotExist):
+                # m2m, abstract
+                pass
+
+        return self.instanciate(attrs)
+        # TODO: we can assign m2ms now
+
+
+class EsModelToJsonMixin(object):
     def __init__(self, model, max_depth=2, cur_depth=1):
         self.model = model
         # used in case of related field on 'self' tu avoid infinite loop
@@ -17,13 +94,6 @@ class ModelJsonSerializer(object):
         self.max_depth = max_depth
 
     def serialize_field(self, instance, field_name):
-        """
-        Takes a field name and returns instance's db value converted
-        for elasticsearch indexation.
-        By default, if it's a related field,
-        it returns a simple object {'id': X, 'value': "YYY"}
-        where "YYY" is the unicode() of the related instance.
-        """
         method_name = 'serialize_{0}'.format(field_name)
         if hasattr(self, method_name):
             return getattr(self, method_name)(instance, field_name)
@@ -45,48 +115,32 @@ class ModelJsonSerializer(object):
             return getattr(self, field_type_method_name)(instance, field_name)
 
         if field.rel:
-            # m2m
+            # M2M
             if isinstance(field, ManyToManyField):
-                return [dict(id=r.pk, value=unicode(r))
+                return [self.nested_serialize(r)
                         for r in getattr(instance, field.name).all()]
             rel = getattr(instance, field.name)
-            # fk, oto
+            # FK, OtO
             if rel:  # should be a model instance
-                # check for Elasticsearch.serializer on the related model
                 if self.cur_depth >= self.max_depth:
                     return
 
-                if hasattr(rel, 'Elasticsearch'):
-                    serializer = rel.es.get_serializer(max_depth=self.max_depth,
-                                                       cur_depth=self.cur_depth + 1)
-
-                    obj = serializer.format(rel)
-                    return obj
-
-                # Use the __unicode__ value of the related model instance.
-                if not hasattr(rel, '__unicode__'):
-                    raise AttributeError(
-                        "You must define a deserialize_{0} in the serializer class "
-                        "or an __unicode__ method in the related model of an "
-                        "Elasticsearch indexed related field for it to work. "
-                        "The method is missing in {1}."
-                        "".format(field_name, instance.__class__))
-                return dict(id=rel.pk, value=unicode(rel))
+                return self.nested_serialize(rel)
         return getattr(instance, field.name)
 
-    def deserialize_field(self, source, field_name):
-        method_name = 'deserialize_{0}'.format(field_name)
-        if hasattr(self, method_name):
-            return getattr(self, method_name)(source, field_name)
-        field = self.model._meta.get_field(field_name)
-        if field.rel:
-            try:
-                return field.rel.to.objects.get(pk=source.get(field_name)['id'])
-            except TypeError:
-                pass
-        return source.get(field_name)
+    def nested_serialize(self, rel):
+        # check for Elasticsearch.serializer on the related model
+        if hasattr(rel, 'Elasticsearch'):
+            serializer = rel.es.get_serializer(max_depth=self.max_depth,
+                                               cur_depth=self.cur_depth + 1)
+            obj = serializer.format(rel)
+            return obj
+
+        # Fallback on a dict with id + __unicode__ value of the related model instance.
+        return dict(id=rel.pk, value=unicode(rel))
 
     def format(self, instance):
+        # from a model instance to a dict
         fields = self.model.es.get_fields()
         obj = dict([(field, self.serialize_field(instance, field))
                     for field in fields])
@@ -107,26 +161,9 @@ class ModelJsonSerializer(object):
                               d.isoformat() if isinstance(d, datetime.datetime)
                               or isinstance(d, datetime.date) else None))
 
-    def deserialize(self, source):
-        """
-        Returns a dict that is suitable to pass to a Model class as kwargs,
-        to instanciate it.
-        """
-        d = {}
-        for k, v in source.iteritems():
-            try:
-                field = self.model._meta.get_field(k)
-            except FieldDoesNotExist:
-                # abstract field
-                continue
 
-            field_type_method_name = 'deserialize_type_{0}'.format(
-                field.__class__.__name__.lower())
-            if hasattr(self, field_type_method_name):
-                d[k] = getattr(self, field_type_method_name)(source, field.name)
-                continue
-
-            if not isinstance(field, ManyToManyField):
-                d[k] = self.deserialize_field(source, k)
-
-        return d
+class EsJsonSerializer(EsModelToJsonMixin, EsJsonToModelMixin, EsSerializer):
+    """
+    Default elasticsearch serializer for a django model
+    """
+    pass
