@@ -2,6 +2,7 @@ import json
 import datetime
 
 from django.db.models import FieldDoesNotExist
+from django.template.loader import render_to_string
 from django.db.models.fields.related import ManyToManyField
 
 
@@ -21,8 +22,8 @@ class EsDbMixin(object):
 
     def deserialize(self, source):
         pk_field = self.model._meta.auto_field
-        ids = [e[pk_field] for e in source]
-        return self.model.objects.filter(**{pk_field + '__in': ids})
+        ids = [e[pk_field.name] for e in source]
+        return self.model.objects.filter(**{pk_field.name + '__in': ids})
 
 
 class EsJsonToModelMixin(object):
@@ -166,4 +167,8 @@ class EsJsonSerializer(EsModelToJsonMixin, EsJsonToModelMixin, EsSerializer):
     """
     Default elasticsearch serializer for a django model
     """
+    pass
+
+
+class EsSimpleJsonSerializer(EsModelToJsonMixin, EsDbMixin, EsSerializer):
     pass

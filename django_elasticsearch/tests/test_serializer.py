@@ -4,6 +4,7 @@ from django_elasticsearch.utils import dict_depth
 from django_elasticsearch.managers import es_client
 from django_elasticsearch.tests.utils import withattrs
 from django_elasticsearch.serializers import EsJsonSerializer
+from django_elasticsearch.serializers import EsSimpleJsonSerializer
 
 from test_app.models import Dummy
 from test_app.models import Test2Model
@@ -103,7 +104,7 @@ class EsJsonSerializerTestCase(TestCase):
         instance = Test2Model.es.deserialize({"datetf": obj["datetf"]})
         self.assertEqual(instance.datetf, self.instance.datetf)
 
-
-class EsTemplateSerializerTestCase(TestCase):
-    # TODO
-    pass
+    @withattrs(Test2Model.Elasticsearch, 'serializer_class', EsSimpleJsonSerializer)
+    def test_simple_serializer(self):
+        results = Test2Model.es.deserialize([{'id': self.instance.pk},])
+        self.assertTrue(self.instance in results)
