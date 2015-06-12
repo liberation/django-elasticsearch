@@ -2,7 +2,6 @@ import json
 import datetime
 
 from django.db.models import FieldDoesNotExist
-from django.template.loader import render_to_string
 from django.db.models.fields.related import ManyToManyField
 
 

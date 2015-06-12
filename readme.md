@@ -55,7 +55,7 @@ Then you can do:
 {'id': 1, 'foo': 'A value'}
 ```
 The elasticsearch manager methods (all, search, mlt) returns an instance of a EsQueryset, it's like a django Queryset but it queries elasticsearch instead of your db.  
-Like a regular Queryset, an EsQueryset is lazy, and if evaluated, returns a list of documents. The ```.deserialize()``` method makes the query instanciate models from elasticsearch values.
+Like a regular Queryset, an EsQueryset is lazy, and if evaluated, returns a list of documents. The ```.deserialize()``` method makes the queryset return instances of models instead of dicts.
 
 > django-elasticsearch **DOES NOT** index documents by itself unless told to, either set settings.ELASTICSEARCH_AUTO_INDEX to True to index your models when you save them, or call directly myinstance.es.do_index().
 
@@ -119,12 +119,11 @@ Each EsIndexable model receive an Elasticsearch class that contains its options 
         
         class Elasticsearch(EsIndexable.Elasticsearch):
             mappings = {'title': {'boost': 2.0}
-    
     ```
     In this example we only override the 'boost' attribute of the 'title' field, but there are plenty of possible configurations, see [the docs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-put-mapping.html).
 
 * **serializer_class**  
-    Defaults to ModelJsonSerializer  
+    Defaults to EsJsonSerializer  
     This is the class used to translate from the django model to elasticsearch document both ways.
 
 * **facets_fields**  
@@ -233,6 +232,8 @@ An EsQueryset acts a lot like a regular Queryset:
 [{'title': 'foo', 'some_content': 'this is a test.'}]
 ```
 
+If you need models methods or attributes, you can get model instances instead of documents (dicts) by calling the deserialize method on the query before evaluating it. See the Serializer API below.
+
 To access the facets you can use the facets property of the EsQueryset:
 ```python
 >>> MyModel.Elasticsearch.default_facets_fields
@@ -270,12 +271,23 @@ Note that es.search automatically add the default facets set on the model to the
 * **es.queryset.mlt**(id)  
     See the [more like this api](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-more-like-this.html).
 
+* **es.queryset.deserialize**()
+    Makes the queryset return model instances instead of documents.
+
 **Does not return an EsQueryset** and thus are not chainable.  
 * **es.queryset.count**()
 
 * **es.queryset.get**(pk=X)
 
 * **es.queryset.complete**(field_name, query)
+
+
+Serializer API:
+---------------
+
+The only mandatory method or attribute for a serializer is the ```serialize``` method, deserializing is only an option, and is called nowhere in the package but in the tests.
+
+
 
 CONTRIB
 =======
