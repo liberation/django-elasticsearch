@@ -285,10 +285,10 @@ Note that es.search automatically add the default facets set on the model to the
 Serializer API:
 ---------------
 
-The serializer's role is to format django model instances to something indexable by elasticsearch : json. The only mandatory method for a serializer is the ```serialize(instance)``` method, deserializing is only an option, and is called nowhere in the package but in the tests.  
+The serializer's role is to format django model instances to something indexable by elasticsearch : json. The only mandatory method for a serializer is the ```serialize(instance)``` method, deserializing is only an option.  
   
 The default serializer does a little bit more though:  
-For each indexed fields, look for either ```serialize_{field_name}``` or ```serialize_{field_type}``` methods, and fallback on ```getattr(instance, field_name)```. Also allow naïve nested serialization, by looking for an Elasticsearch class attribute on the target model class of the related field, or falling back on ```dict(id=instance.id, value=unicode(instance))```.
+For each indexed fields, look for either ```serialize_{field_name}``` or ```serialize_{field_type}``` methods, and fallback on ```getattr(instance, field_name)```. Also allow naive nested serialization, by looking for an Elasticsearch class attribute on the target model class of the related field, or falling back on ```dict(id=instance.id, value=unicode(instance))```.  
 Let's look at a bit complex example:  
 
 my_app.models.py  
