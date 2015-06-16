@@ -14,3 +14,10 @@ def nested_update(d, u):
         else:
             d[k] = u[k]
     return d
+
+
+def dict_depth(d, depth=0):
+    if not isinstance(d, dict) or not d:
+        return depth
+    return max(dict_depth(v, depth + 1)
+               for k, v in d.iteritems())

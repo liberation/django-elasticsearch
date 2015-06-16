@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import json as json_serializer
-
 from elasticsearch import NotFoundError
 
 from django.test import TestCase
@@ -8,13 +6,8 @@ from django.test.utils import override_settings
 
 from django_elasticsearch.managers import es_client
 from django_elasticsearch.tests.utils import withattrs
-from django_elasticsearch.tests.models import TestModel
-from django_elasticsearch.serializers import ModelJsonSerializer
 
-
-class CustomSerializer(ModelJsonSerializer):
-    def serialize_first_name(self, instance, field_name):
-        return u'pedro'
+from test_app.models import TestModel
 
 
 class EsIndexableTestCase(TestCase):
@@ -30,40 +23,6 @@ class EsIndexableTestCase(TestCase):
     def tearDown(self):
         super(EsIndexableTestCase, self).tearDown()
         es_client.indices.delete(index=TestModel.es.get_index())
-
-    def _serialize(self):
-        json = self.instance.es.serialize()
-        # Checking one by one, different types of fields
-        self.assertIn('"id": %d' % self.instance.id, json)
-        self.assertIn('"first_name": "woot"', json)
-        self.assertIn('"last_name": "foo"', json)
-
-        return json
-
-    def test_serializer(self):
-        json = self._serialize()
-        s = self.instance.es.serializer.serialize_date_joined(self.instance, 'date_joined')
-        self.assertIn('"date_joined": %s' % json_serializer.dumps(s), json)
-
-    @withattrs(TestModel.Elasticsearch, 'serializer_class',
-               'django_elasticsearch.serializers.ModelJsonSerializer')
-    def test_dynamic_serializer_import(self):
-        self.instance.es.serializer = None  # reset cached property
-        json = self._serialize()
-        self.instance.es.serializer = None  # reset cached property
-        self.assertIn('"date_joined": "%s"' % self.instance.date_joined.isoformat(), json)
-
-    @withattrs(TestModel.Elasticsearch, 'fields', ['favorite_color',])
-    @withattrs(TestModel.Elasticsearch, 'mappings', {"favorite_color": {"type": "string"}})
-    def test_abstract_field(self):
-        TestModel.es.flush()
-        r = self.instance.es.get()
-        self.assertEqual(r, {'favorite_color': self.instance.favorite_color})
-
-    def test_deserialize(self):
-        instance = TestModel.es.deserialize({'username':'test'})
-        self.assertEqual(instance.username, 'test')
-        self.assertRaises(ValueError, instance.save)
 
     def test_needs_instance(self):
         with self.assertRaises(AttributeError):
@@ -175,14 +134,8 @@ class EsIndexableTestCase(TestCase):
         TestModel.es.flush()
         TestModel.es.do_update()
 
-        expected = {
-            u'username': {u'index': u'not_analyzed', u'type': u'string'},
-            u'date_joined': {u'properties': {
-                u'iso': {u'format': u'dateOptionalTime', u'type': u'date'},
-                u'date': {u'type': u'string'},
-                u'time': {u'type': u'string'}
-            }}
-        }
+        expected = {u'date_joined': {u'format': u'dateOptionalTime', u'type': u'date'},
+                    u'username': {u'index': u'not_analyzed', u'type': u'string'}}
 
         # Reset the eventual cache on the Model mapping
         mapping = TestModel.es.get_mapping()
@@ -194,19 +147,6 @@ class EsIndexableTestCase(TestCase):
         # it doesn't crash and deserialize well.
         settings = TestModel.es.get_settings()
         self.assertEqual(dict, type(settings))
-
-    @withattrs(TestModel.Elasticsearch, 'fields', ['first_name', 'last_name'])
-    def test_custom_fields(self):
-        json = self.instance.es.serialize()
-        expected = {"first_name": "woot", "last_name": "foo"}
-        self.assertEqual(json_serializer.loads(json), expected)
-
-    def test_custom_serializer(self):
-        old_serializer = self.instance.es.serializer
-        self.instance.es.serializer = CustomSerializer(TestModel)
-        json = self.instance.es.serialize()
-        self.assertIn('"first_name": "pedro"', json)
-        self.instance.es.serializer = old_serializer
 
     def test_custom_index(self):
         es_client.indices.exists(TestModel.Elasticsearch.index)

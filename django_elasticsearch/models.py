@@ -4,7 +4,7 @@ from django.db.models import Model
 from django.db.models.signals import post_save, post_delete, post_syncdb
 from django.db.models.signals import class_prepared
 
-from django_elasticsearch.serializers import ModelJsonSerializer
+from django_elasticsearch.serializers import EsJsonSerializer
 from django_elasticsearch.managers import ElasticsearchManager
 
 
@@ -19,7 +19,7 @@ class EsIndexable(Model):
         index = getattr(settings, 'ELASTICSEARCH_DEFAULT_INDEX', 'django')
         doc_type = None  # defaults to 'model-{model.name}'
         mapping = None
-        serializer_class = ModelJsonSerializer
+        serializer_class = EsJsonSerializer
         fields = None
         facets_limit = 10
         facets_fields = None
