@@ -55,7 +55,7 @@ Then you can do:
 {'id': 1, 'foo': 'A value'}
 ```
 The elasticsearch manager methods (all, search, mlt) returns an instance of a EsQueryset, it's like a django Queryset but it queries elasticsearch instead of your db.  
-Like a regular Queryset, an EsQueryset is lazy, and if evaluated, returns a list of documents. The ```.deserialize()``` method makes the query instanciate models from elasticsearch values.
+Like a regular Queryset, an EsQueryset is lazy, and if evaluated, returns a list of documents. The ```.deserialize()``` method makes the queryset return instances of models instead of dicts.
 
 > django-elasticsearch **DOES NOT** index documents by itself unless told to, either set settings.ELASTICSEARCH_AUTO_INDEX to True to index your models when you save them, or call directly myinstance.es.do_index().
 
@@ -119,12 +119,11 @@ Each EsIndexable model receive an Elasticsearch class that contains its options 
         
         class Elasticsearch(EsIndexable.Elasticsearch):
             mappings = {'title': {'boost': 2.0}
-    
     ```
     In this example we only override the 'boost' attribute of the 'title' field, but there are plenty of possible configurations, see [the docs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-put-mapping.html).
 
 * **serializer_class**  
-    Defaults to ModelJsonSerializer  
+    Defaults to EsJsonSerializer  
     This is the class used to translate from the django model to elasticsearch document both ways.
 
 * **facets_fields**  
@@ -233,6 +232,8 @@ An EsQueryset acts a lot like a regular Queryset:
 [{'title': 'foo', 'some_content': 'this is a test.'}]
 ```
 
+If you need models methods or attributes, you can get model instances instead of documents (dicts) by calling the deserialize method on the query before evaluating it. See the Serializer API below.
+
 To access the facets you can use the facets property of the EsQueryset:
 ```python
 >>> MyModel.Elasticsearch.default_facets_fields
@@ -270,12 +271,92 @@ Note that es.search automatically add the default facets set on the model to the
 * **es.queryset.mlt**(id)  
     See the [more like this api](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-more-like-this.html).
 
+* **es.queryset.deserialize**()
+    Makes the queryset return model instances instead of documents.
+
 **Does not return an EsQueryset** and thus are not chainable.  
 * **es.queryset.count**()
 
 * **es.queryset.get**(pk=X)
 
 * **es.queryset.complete**(field_name, query)
+
+
+Serializer API:
+---------------
+
+The serializer's role is to format django model instances to something indexable by elasticsearch : json. The only mandatory method for a serializer is the ```serialize(instance)``` method, deserializing is only an option.  
+  
+The default serializer does a little bit more though:  
+For each indexed fields, look for either ```serialize_{field_name}``` or ```serialize_{field_type}``` methods, and fallback on ```getattr(instance, field_name)```. Also allow naive nested serialization, by looking for an Elasticsearch class attribute on the target model class of the related field, or falling back on ```dict(id=instance.id, value=unicode(instance))```.  
+Let's look at a bit complex example:  
+
+my_app.models.py  
+```python
+from django.db import models
+from django_elasticsearch.models import EsIndexable
+from my_app.serializers import MyModelEsSerializer
+
+class MyModel(models.Model):
+      some_content = models.CharField(max_length=255)
+      more_content = models.TextField()
+      a_date = models.DateTimeField(auto_now_add=True)
+      another_date = models.DateTimeField(auto_now=True)
+      some_relation = models.ForeignKey(AnotherModel)
+
+      class Elasticsearch(EsIndexable.Elasticsearch):
+            serializer_class = MyModelEsSerializer
+            fields = ['some_content', 'more_content', 'content_length', 'a_date', 'some_relation']
+            mappings = {'content_length': {'type': 'long'},
+                        'a_date': {'type': 'object'}}
+
+```
+
+Note that since ```content_length``` is an abstract field (not present in db), and ```a_date``` is serialized to a dict instead of it's default (datetime), we need to tell elasticsearch their types in the mappings attribute.  
+
+serializers.py  
+```python
+from django_elasticsearch.serializers import EsJsonSerializer
+
+class MyModelEsSerializer(EsJsonSerializer):
+    def serialize_more_content(self, instance, field_name):
+        # Specific attribute serializer
+        return getattr(instance, field_name)[:5]
+
+    def serialize_content_length(self, instance, field_name):
+        # Abstract field serializer
+        content = getattr(instance, 'some_content')
+        return len(content)
+
+    def serialize_type_datetimefield(self, instance, field_name):
+        # Specific field type serializer
+        d = getattr(instance, field_name)
+        # A rather typical api output,
+        # The reasons for indexing dates as this are debatable, but it's just an example
+        return {
+            'timestamp': d and d.strftime('%s'),
+            'date': d and d.date().isoformat(),
+            'time': d and d.time().isoformat()[:5]
+        }
+```
+
+output
+```python
+>>> instance = MyModel(some_content=u"This is some minimalist content.",
+                       more_content=u"And that too.")
+<MyModel >
+>>> instance.es.serialize()
+"{'some_content': 'This is some minimalist content.',
+  'more_content': 'And t',
+  'content_length': 32,
+  'a_date': {
+     'timestamp': '1434452101',
+     'date': '2015-06-16',
+     'time': '05:53:56.626532'
+  },
+  'some_relation': {'id': 15, 'value': 'something something'}
+}"
+```
 
 CONTRIB
 =======

@@ -19,12 +19,16 @@ ELASTICSEARCH_FIELD_MAP = {
     # both defaults to 'dateOptionalTime'
     u'DateField': 'date',
     u'DateTimeField': 'date',
+    # u'TimeField': 'string',
     u'FloatField': 'double',
     u'IntegerField': 'long',
     u'PositiveIntegerField': 'long',
     u'PositiveSmallIntegerField': 'short',
     u'SmallIntegerField': 'short',
-    u'ForeignKey': 'object'
+
+    u'ForeignKey': 'object',
+    u'OneToOneField': 'object',
+    u'ManyToManyField': 'object'
 }
 
 
@@ -76,15 +80,14 @@ class ElasticsearchManager():
     def check_cluster(self):
         return es_client.ping()
 
-    def get_serializer(self):
-        if not self.serializer:
-            if isinstance(self.model.Elasticsearch.serializer_class, basestring):
-                module, kls = self.model.Elasticsearch.serializer_class.rsplit(".", 1)
-                mod = importlib.import_module(module)
-                self.serializer = getattr(mod, kls)(self.model)
-            else:
-                self.serializer = self.model.Elasticsearch.serializer_class(self.model)
-        return self.serializer
+    def get_serializer(self, **kwargs):
+        serializer = self.model.Elasticsearch.serializer_class
+        if isinstance(serializer, basestring):
+            module, kls = self.model.Elasticsearch.serializer_class.rsplit(".", 1)
+            mod = importlib.import_module(module)
+            return getattr(mod, kls)(self.model, **kwargs)
+        else:
+            return serializer(self.model, **kwargs)
 
     @needs_instance
     def serialize(self):
@@ -105,15 +108,11 @@ class ElasticsearchManager():
         """
         serializer = self.get_serializer()
 
-        def instanciate(e):
-            instance = self.model(**serializer.deserialize(e))
-            instance._is_es_deserialized = True
-            return instance
-
         if isinstance(source, EsQueryset):
-            return [instanciate(e) for e in source]
+            # Note: generator ?
+            return [serializer.deserialize(e) for e in source]
         else:
-            return instanciate(source)
+            return serializer.deserialize(source)
 
     @needs_instance
     def do_index(self):
@@ -238,7 +237,9 @@ class ElasticsearchManager():
         es_client.indices.refresh(index=self.index)
 
     def get_fields(self):
-        model_fields = [f.name for f in self.model._meta.fields]
+        model_fields = [f.name for f in self.model._meta.fields +
+                        self.model._meta.many_to_many]
+
         return self.model.Elasticsearch.fields or model_fields
 
     def make_mapping(self):

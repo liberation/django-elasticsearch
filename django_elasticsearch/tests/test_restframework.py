@@ -13,7 +13,7 @@ from elasticsearch import TransportError
 
 from django_elasticsearch.client import es_client
 from django_elasticsearch.tests.utils import withattrs
-from django_elasticsearch.tests.models import TestModel
+from test_app.models import TestModel
 from django_elasticsearch.contrib.restframework import ElasticsearchFilterBackend
 
 
