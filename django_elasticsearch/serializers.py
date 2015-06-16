@@ -89,7 +89,7 @@ class EsJsonToModelMixin(object):
 class EsModelToJsonMixin(object):
     def __init__(self, model, max_depth=2, cur_depth=1):
         self.model = model
-        # used in case of related field on 'self' tu avoid infinite loop
+        # used in case of related field on 'self' to avoid infinite loop
         self.cur_depth = cur_depth
         self.max_depth = max_depth
 
@@ -101,32 +101,34 @@ class EsModelToJsonMixin(object):
         try:
             field = self.model._meta.get_field(field_name)
         except FieldDoesNotExist:
-            # abstract field: check for a model property/attribute
-            if hasattr(instance, field_name):
-                return getattr(instance, field_name)
+            # Abstract field
+            pass
+        else:
+            field_type_method_name = 'serialize_type_{0}'.format(
+                field.__class__.__name__.lower())
+            if hasattr(self, field_type_method_name):
+                return getattr(self, field_type_method_name)(instance, field_name)
 
+            if field.rel:
+                # M2M
+                if isinstance(field, ManyToManyField):
+                    return [self.nested_serialize(r)
+                            for r in getattr(instance, field.name).all()]
+
+                rel = getattr(instance, field.name)
+                # FK, OtO
+                if rel:  # should be a model instance
+                    if self.cur_depth >= self.max_depth:
+                        return
+
+                    return self.nested_serialize(rel)
+
+        try:
+            return getattr(instance, field_name)
+        except AttributeError:
             raise AttributeError("The serializer doesn't know how to serialize {0}, "
                                  "please provide it a {1} method."
                                  "".format(field_name, method_name))
-
-        field_type_method_name = 'serialize_type_{0}'.format(
-            field.__class__.__name__.lower())
-        if hasattr(self, field_type_method_name):
-            return getattr(self, field_type_method_name)(instance, field_name)
-
-        if field.rel:
-            # M2M
-            if isinstance(field, ManyToManyField):
-                return [self.nested_serialize(r)
-                        for r in getattr(instance, field.name).all()]
-            rel = getattr(instance, field.name)
-            # FK, OtO
-            if rel:  # should be a model instance
-                if self.cur_depth >= self.max_depth:
-                    return
-
-                return self.nested_serialize(rel)
-        return getattr(instance, field.name)
 
     def nested_serialize(self, rel):
         # check for Elasticsearch.serializer on the related model

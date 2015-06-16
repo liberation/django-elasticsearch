@@ -285,9 +285,78 @@ Note that es.search automatically add the default facets set on the model to the
 Serializer API:
 ---------------
 
-The only mandatory method or attribute for a serializer is the ```serialize``` method, deserializing is only an option, and is called nowhere in the package but in the tests.
+The serializer's role is to format django model instances to something indexable by elasticsearch : json. The only mandatory method for a serializer is the ```serialize(instance)``` method, deserializing is only an option, and is called nowhere in the package but in the tests.  
+  
+The default serializer does a little bit more though:  
+For each indexed fields, look for either ```serialize_{field_name}``` or ```serialize_{field_type}``` methods, and fallback on ```getattr(instance, field_name)```. Also allow naïve nested serialization, by looking for an Elasticsearch class attribute on the target model class of the related field, or falling back on ```dict(id=instance.id, value=unicode(instance))```.
+Let's look at a bit complex example:  
 
+my_app.models.py  
+```python
+from django.db import models
+from django_elasticsearch.models import EsIndexable
+from my_app.serializers import MyModelEsSerializer
 
+class MyModel(models.Model):
+      some_content = models.CharField(max_length=255)
+      more_content = models.TextField()
+      a_date = models.DateTimeField(auto_now_add=True)
+      another_date = models.DateTimeField(auto_now=True)
+      some_relation = models.ForeignKey(AnotherModel)
+
+      class Elasticsearch(EsIndexable.Elasticsearch):
+            serializer_class = MyModelEsSerializer
+            fields = ['some_content', 'more_content', 'content_length', 'a_date', 'some_relation']
+            mappings = {'content_length': {'type': 'long'},
+                        'a_date': {'type': 'object'}}
+
+```
+
+Note that since ```content_length``` is an abstract field (not present in db), and ```a_date``` is serialized to a dict instead of it's default (datetime), we need to tell elasticsearch their types in the mappings attribute.  
+
+serializers.py  
+```python
+from django_elasticsearch.serializers import EsJsonSerializer
+
+class MyModelEsSerializer(EsJsonSerializer):
+    def serialize_more_content(self, instance, field_name):
+        # Specific attribute serializer
+        return getattr(instance, field_name)[:5]
+
+    def serialize_content_length(self, instance, field_name):
+        # Abstract field serializer
+        content = getattr(instance, 'some_content')
+        return len(content)
+
+    def serialize_type_datetimefield(self, instance, field_name):
+        # Specific field type serializer
+        d = getattr(instance, field_name)
+        # A rather typical api output,
+        # The reasons for indexing dates as this are debatable, but it's just an example
+        return {
+            'timestamp': d and d.strftime('%s'),
+            'date': d and d.date().isoformat(),
+            'time': d and d.time().isoformat()[:5]
+        }
+```
+
+output
+```python
+>>> instance = MyModel(some_content=u"This is some minimalist content.",
+                       more_content=u"And that too.")
+<MyModel >
+>>> instance.es.serialize()
+"{'some_content': 'This is some minimalist content.',
+  'more_content': 'And t',
+  'content_length': 32,
+  'a_date': {
+     'timestamp': '1434452101',
+     'date': '2015-06-16',
+     'time': '05:53:56.626532'
+  },
+  'some_relation': {'id': 15, 'value': 'something something'}
+}"
+```
 
 CONTRIB
 =======
