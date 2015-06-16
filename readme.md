@@ -382,7 +382,7 @@ You can also use the ```MyModel.es.check_cluster()``` method which returns True 
 TESTS
 =====
 
-Django-elasticsearch has a 92% test coverage, and tests pass for django 1.4 to 1.8 (contrib.restframework aside).
+Django-elasticsearch has a 93% test coverage, and tests pass for django 1.4 to 1.8 (contrib.restframework aside).
 
 Using tox
 ---------
@@ -395,7 +395,7 @@ tox
 
 Or to test one specific python/django version combo:
 ```
-tox -e py2.7-django1.6
+tox -e py27-django16
 ```
 
 
