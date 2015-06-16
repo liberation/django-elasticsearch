@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 import mock
+from unittest import skipIf
 
 from rest_framework import status
 from rest_framework.settings import api_settings
 from rest_framework.test import APIClient
 
+from django import VERSION as DJANGO_VERSION
 from django.test import TestCase
 from django.db.models.query import QuerySet
 from django.contrib.auth.models import User
@@ -21,6 +23,8 @@ class Fake():
     pass
 
 
+@skipIf(DJANGO_VERSION >= (1, 8),
+        'django_elasticsearch.contrib.restframework is not yet compatible with the new API, skipping.')
 class EsRestFrameworkTestCase(TestCase):
     urls = 'django_elasticsearch.tests.urls'
 

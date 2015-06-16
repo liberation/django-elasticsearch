@@ -56,8 +56,6 @@ class ElasticsearchManager():
         elif issubclass(k, EsIndexable):
             self.instance = None
             self.model = k
-        else:
-            raise TypeError
 
         self.serializer = None
         self._mapping = None
@@ -303,21 +301,23 @@ class ElasticsearchManager():
         """
         Returns a nice diff between the db and es.
         """
-        a = self.get()
+        es = self.get()
         if source is not None:
-            b = source
-        if getattr(self.instance, '_is_es_deserialized', False):
+            db = source
+        elif getattr(self.instance, '_is_es_deserialized', False):
             # we need to fetch it from db
-            b = json.loads(self.model.objects.get(pk=self.instance.pk))
+            db = json.loads(self.model.objects.get(pk=self.instance.pk).es.serialize())
         else:
-            b = json.loads(self.instance.es.serialize())  # db value
+            db = json.loads(self.instance.es.serialize())  # db value
 
         # we are only interested in indexed fields
         diff = {}
         for field_name in self.get_fields():
-            if a[field_name] != b[field_name]:
-                diff[field_name] = {'es': a[field_name],
-                                    'db': b[field_name]}
+            esval = es.get(field_name)
+            dbval = db.get(field_name)
+            if esval != dbval:
+                diff[field_name] = {'es': esval,
+                                    'db': dbval}
 
         return diff
 

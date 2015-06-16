@@ -55,6 +55,10 @@ class EsQuerysetTestCase(TestCase):
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 in contents)
 
+    def test_slice(self):
+        content = TestModel.es.deserialize(TestModel.es.all()[0])
+        self.assertEqual(self.t1, content)
+
     def test_repr(self):
         contents = str(TestModel.es.queryset.order_by('id').deserialize())
         expected = str(TestModel.objects.all())
@@ -100,7 +104,7 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(expected, qs.facets)
 
     def test_suggestions(self):
-        qs = TestModel.es.search('smath').suggest(['last_name'])
+        qs = TestModel.es.search('smath').suggest(['last_name',], limit=3)
         expected = {
             u'last_name': [
                 {u'length': 5,
@@ -134,6 +138,15 @@ class EsQuerysetTestCase(TestCase):
         qs = TestModel.objects.all()
         qes = TestModel.es.all().deserialize()
         self.assertEqual(list(qs), list(qes))
+
+    @withattrs(TestModel.Elasticsearch, 'ordering', ['username',])
+    def test_model_ordering(self):
+        qs = TestModel.es.queryset.all()
+        contents = qs.deserialize()
+        self.assertEqual(contents[0], self.t3)
+        self.assertEqual(contents[1], self.t4)
+        self.assertEqual(contents[2], self.t2)
+        self.assertEqual(contents[3], self.t1)
 
     def test_filtering(self):
         contents = TestModel.es.filter(last_name=u"Smith").deserialize()
@@ -224,6 +237,13 @@ class EsQuerysetTestCase(TestCase):
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 in contents)
 
+        qs = TestModel.es.all().exclude(username__not=u"woot")
+        contents = qs.deserialize()
+        self.assertTrue(self.t1 not in contents)
+        self.assertTrue(self.t2 in contents)
+        self.assertTrue(self.t3 not in contents)
+        self.assertTrue(self.t4 not in contents)
+
     def test_excluding_lookups(self):
         contents = TestModel.es.exclude(id__gt=self.t2.id).deserialize()
         self.assertTrue(self.t1 in contents)
@@ -268,6 +288,19 @@ class EsQuerysetTestCase(TestCase):
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 not in contents)
         self.assertTrue(self.t4 not in contents)
+
+    def test_should_lookup(self):
+        contents = TestModel.es.all().filter(last_name__should=u"Smith").deserialize()
+        self.assertTrue(self.t1 in contents)
+        self.assertTrue(self.t4 not in contents)
+
+    def test_nonzero(self):
+        self.assertTrue(TestModel.es.all())
+
+    def test_response(self):
+        r = TestModel.es.all().response
+        # Note: don't make assumptions about what is returned for now
+        self.assertTrue(type(r) is dict)
 
     def test_clone_query(self):
         q = TestModel.es.all()

@@ -24,6 +24,21 @@ class EsIndexableTestCase(TestCase):
         super(EsIndexableTestCase, self).tearDown()
         es_client.indices.delete(index=TestModel.es.get_index())
 
+    def test_needs_instance(self):
+        with self.assertRaises(AttributeError):
+            TestModel.es.do_index()
+
+    def test_check_cluster(self):
+        self.assertEqual(TestModel.es.check_cluster(), True)
+
+    def test_get_api(self):
+        self.assertEqual(self.instance.es.get(),
+                         TestModel.es.get(pk=self.instance.pk),
+                         TestModel.es.get(id=self.instance.pk))
+
+        with self.assertRaises(AttributeError):
+            TestModel.es.get()
+
     def test_do_index(self):
         self.instance.es.do_index()
         r = TestModel.es.deserialize(self.instance.es.get())
@@ -133,12 +148,6 @@ class EsIndexableTestCase(TestCase):
         settings = TestModel.es.get_settings()
         self.assertEqual(dict, type(settings))
 
-    @withattrs(TestModel.Elasticsearch, 'fields', ['first_name', 'last_name'])
-    def test_custom_fields(self):
-        json = self.instance.es.serialize()
-        expected = '{"first_name": "woot", "last_name": "foo"}'
-        self.assertEqual(json, expected)
-
     def test_custom_index(self):
         es_client.indices.exists(TestModel.Elasticsearch.index)
 
@@ -165,4 +174,10 @@ class EsIndexableTestCase(TestCase):
             'db': u'pouet'
             }
         }
+
         self.assertEqual(self.instance.es.diff(), expected)
+        self.assertEqual(self.instance.es.diff(source=self.instance.es.get()), {})
+
+        # force diff to reload from db
+        deserialized = TestModel.es.all().deserialize()[0]
+        self.assertEqual(deserialized.es.diff(), {})

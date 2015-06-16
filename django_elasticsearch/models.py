@@ -73,7 +73,6 @@ def es_syncdb_callback(sender, app, created_models, **kwargs):
         if issubclass(model, EsIndexable):
             model.es.create_index()
 
-
 if getattr(settings, 'ELASTICSEARCH_AUTO_INDEX', False):
     # Note: can't specify the sender class because EsIndexable is Abstract,
     # see: https://code.djangoproject.com/ticket/9318
