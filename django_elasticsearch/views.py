@@ -1,11 +1,7 @@
-import json
-
 from django.http import Http404
-from django.http import HttpResponse
 from django.views.generic import View
-from django.views.generic import ListView
-from django.views.generic import DetailView
-from django.core import serializers
+from django.views.generic.list import BaseListView
+from django.views.generic.detail import BaseDetailView
 
 from elasticsearch import NotFoundError
 try:
@@ -20,62 +16,52 @@ class ElasticsearchView(View):
     A very simple/naive view, that returns elasticsearch's response directly.
     Note that pagination is also done on elasticsearch side.
     """
+    db_fallback = True
+    es_queryset = None
+
     def __init__(self, *args, **kwargs):
         self.es_failed = False
         super(ElasticsearchView, self).__init__(*args, **kwargs)
 
-    def serialize(self, qs):
-        # fallback serializer, you should probably override this
-        return serializers.serialize('json', qs)
-
     def get_queryset(self):
         if self.es_failed:
-            return self.model.objects.all()
+            return super(ElasticsearchView, self).get_queryset()
         else:
-            return self.queryset or self.model.es.all()
+            return self.es_queryset or self.model.es.all().deserialize()
 
 
-class ElasticsearchListView(ElasticsearchView, ListView):
-
-    def get(self, context, *args, **kwargs):
-        qs = self.get_queryset()
+class ElasticsearchListView(ElasticsearchView, BaseListView):
+    def get_paginate_by(self, *args, **kwargs):
+        # disable pagination since elasticsearch does it by itself
         if self.es_failed:
-            content = qs
+            return None
         else:
-            # by default, would iterate over the results, handle pagination etc
-            # but we don't want that because elasticsearch do it by itself.
-            try:
-                content = json.dumps(qs.do_search().response)
-            except (TransportError, ConnectionError):
-                self.es_failed = True
-                qs = self.get_queryset()  # django queryset now
-                page_size = self.get_paginate_by(qs)
-                if page_size:
-                    content = self.serialize(self.paginate_queryset(qs, page_size))
-                else:
-                    content = self.serialize(qs)
-        return HttpResponse(content, content_type='application/json')
+            return super(ElasticsearchListView, self).get_paginate_by(*args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        try:
+            return super(ElasticsearchListView, self).get(request, *args, **kwargs)
+        except (TransportError, ConnectionError):
+            self.es_failed = True
+            if self.db_fallback:
+                return super(ElasticsearchListView, self).get(request, *args, **kwargs)
+            else:
+                raise
 
 
-class ElasticsearchDetailView(ElasticsearchView, DetailView):
-
-    def serialize(self, qs):
-        s = super(ElasticsearchDetailView, self).serialize(qs)
-        # this is higly inneficient: as i said, you should override .serialize() !
-        obj = json.loads(s)
-        return json.dumps(obj[0]['fields'])
-
+class ElasticsearchDetailView(ElasticsearchView, BaseDetailView):
     def get_object(self, queryset=None):
         try:
             return super(ElasticsearchDetailView, self).get_object(queryset=queryset)
         except NotFoundError:
             raise Http404
 
-    def get(self, context, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         try:
-            content = json.dumps(self.get_object())
+            return super(ElasticsearchDetailView, self).get(request, *args, **kwargs)
         except (TransportError, ConnectionError):
             self.es_failed = True
-            content = self.serialize([self.get_object()])
-
-        return HttpResponse(content, content_type='application/json')
+            if self.db_fallback:
+                return super(ElasticsearchDetailView, self).get(request, *args, **kwargs)
+            else:
+                raise

@@ -26,8 +26,6 @@ class Fake():
 @skipIf(DJANGO_VERSION >= (1, 8),
         'django_elasticsearch.contrib.restframework is not yet compatible with the new API, skipping.')
 class EsRestFrameworkTestCase(TestCase):
-    urls = 'django_elasticsearch.tests.urls'
-
     def setUp(self):
         TestModel.es.create_index()
 

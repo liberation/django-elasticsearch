@@ -382,7 +382,7 @@ You can also use the ```MyModel.es.check_cluster()``` method which returns True 
 TESTS
 =====
 
-Django-elasticsearch has a 93% test coverage, and tests pass for django 1.4 to 1.8 (contrib.restframework aside).
+Django-elasticsearch has a 95% test coverage, and tests pass for django 1.4 to 1.8 (contrib.restframework aside).
 
 Using tox
 ---------
@@ -411,8 +411,14 @@ $ pip install -r requirements.txt  # tests requirements
 $ python manage.py test django_elasticsearch
 ```
 
+Coverage
+--------
+
+```
+coverage run --source=django_elasticsearch --omit='*tests*','*migrations*' manage.py test django_elasticsearch
+```
+
 **Notes**:
-* To test with a older version of django, simply install it with, for example, ```pip install django==1.4.5``` and run ```python manage.py test django_elasticsearch```.
 * django-restframework version 3 is required for django >1.8, but since the api changed a lot, it's not working right now.
 
 TODO
