@@ -54,11 +54,17 @@ class EsJsonToModelMixin(object):
             return getattr(self, method_name)(source, field_name)
 
         field = self.model._meta.get_field(field_name)
-
         field_type_method_name = 'deserialize_type_{0}'.format(
             field.__class__.__name__.lower())
         if hasattr(self, field_type_method_name):
             return getattr(self, field_type_method_name)(source, field_name)
+
+        val = source.get(field_name)
+
+        # datetime
+        typ = field.get_internal_type()
+        if val and typ in ('DateField', 'DateTimeField'):
+            return datetime.datetime.strptime(val, '%Y-%m-%dT%H:%M:%S.%f')
 
         if field.rel:
             # M2M
