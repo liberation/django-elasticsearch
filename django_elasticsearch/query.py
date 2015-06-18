@@ -375,7 +375,11 @@ class EsQueryset(QuerySet):
                           doc_type=self.doc_type,
                           id=pk)
         self._response = r
-        return r['_source']
+
+        if self._deserialize:
+            return self.model.es.deserialize(r['_source'])
+        else:
+            return r['_source']
 
     def mlt(self, id, **kwargs):
         self.mode = self.MODE_MLT
