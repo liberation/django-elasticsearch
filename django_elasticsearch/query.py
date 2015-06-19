@@ -276,10 +276,7 @@ class EsQueryset(QuerySet):
         self._response = r
         if self.facets_fields:
             if self.global_facets:
-                try:
-                    self._facets = r['aggregations']['global_count']
-                except KeyError:
-                    self._facets = {}
+                self._facets = r['aggregations']['global_count']
             else:
                 self._facets = r['aggregations']
 
@@ -324,7 +321,7 @@ class EsQueryset(QuerySet):
         return clone
 
     def sanitize_lookup(self, lookup):
-        valid_operators = ['exact', 'not', 'should', 'range','gt', 'lt', 'gte', 'lte', 'contains', 'isnull']
+        valid_operators = ['exact', 'not', 'should', 'range', 'gt', 'lt', 'gte', 'lte', 'contains', 'isnull']
         words = lookup.split('__')
         fields = [word for word in words if word not in valid_operators]
         # this is also django's default lookup type

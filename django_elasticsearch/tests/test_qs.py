@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 from django.test import TestCase
 from django.test.utils import override_settings
+from django.contrib.auth.models import Group
 
 from django_elasticsearch.client import es_client
 from django_elasticsearch.managers import EsQueryset
@@ -21,6 +22,9 @@ class EsQuerysetTestCase(TestCase):
                                            first_name=u"John",
                                            last_name=u"Smith",
                                            email='johnsmith@host.com')
+        self.group = Group.objects.create(name='agroup')
+        self.t1.groups.add(self.group)
+
         self.t2 = TestModel.objects.create(username=u"woot",
                                            first_name=u"Jack",
                                            last_name=u"Smith",
@@ -148,6 +152,16 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(contents[2], self.t2)
         self.assertEqual(contents[3], self.t1)
 
+    def test_get(self):
+        data = self.t1.es.get()
+        self.assertEqual(data['id'], self.t1.id)
+
+        data = TestModel.es.get(pk=self.t1.id)
+        self.assertEqual(data['id'], self.t1.id)
+
+        with self.assertRaises(AttributeError):
+            TestModel.es.queryset.get()
+
     def test_filtering(self):
         contents = TestModel.es.filter(last_name=u"Smith").deserialize()
         self.assertTrue(self.t1 in contents)
@@ -217,6 +231,11 @@ class EsQuerysetTestCase(TestCase):
         qs = TestModel.es.filter(date_joined_exp__iso__isnull=False)
         self.assertEqual(qs.count(), 4)
 
+    def test_nested_filter(self):
+        TestModel.es._mapping = None
+        qs = TestModel.es.filter(groups=self.group)
+        self.assertEqual(qs.count(), 1)
+
     @withattrs(TestModel.Elasticsearch, 'fields', ['id', 'date_joined_exp'])
     def test_filter_date_range(self):
         TestModel.es._fields = None
@@ -243,6 +262,9 @@ class EsQuerysetTestCase(TestCase):
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 not in contents)
         self.assertTrue(self.t4 not in contents)
+
+        with self.assertRaises(NotImplementedError):
+            TestModel.es.exclude(id__range=(0, 1))
 
     def test_excluding_lookups(self):
         contents = TestModel.es.exclude(id__gt=self.t2.id).deserialize()

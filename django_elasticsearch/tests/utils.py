@@ -15,6 +15,9 @@ def withattrs(kls, attr, val):
     def test_foo(self):
         pass
 
+    It's basically the same as calling mock.patch('module.module.Klass.attribute',
+                                                  new=val,
+                                                  create=True)
     """
     def wrap(func):
         def wrapper(*args, **kwargs):
