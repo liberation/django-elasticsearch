@@ -8,13 +8,8 @@ from rest_framework.mixins import ListModelMixin
 from rest_framework.decorators import list_route
 from rest_framework.filters import OrderingFilter
 from rest_framework.filters import DjangoFilterBackend
-try:
-    from rest_framework.pagination import PaginationSerializer
-except ImportError:
-    # TODO: restframework 3.0
-    class PaginationSerializer(object):
-        pass
 
+from rest_framework.pagination import PaginationSerializer
 from rest_framework.serializers import BaseSerializer
 
 from elasticsearch import NotFoundError
@@ -154,10 +149,14 @@ class IndexableModelMixin(object):
         try:
             r = super(IndexableModelMixin, self).dispatch(request, *args, **kwargs)
         except (ConnectionError, TransportError), e:
+            # reset object list
+            self.queryset = None
             self.es_failed = True
+            # db fallback
             r = super(IndexableModelMixin, self).dispatch(request, *args, **kwargs)
             if settings.DEBUG and isinstance(r.data, dict):
                 r.data["filter_fail_cause"] = str(e)
+
         # Add a failed message in case something went wrong with elasticsearch
         # for example if the cluster went down.
         if isinstance(r.data, dict) and self.action in ['list', 'retrieve']:
