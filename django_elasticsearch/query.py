@@ -60,8 +60,8 @@ class EsQueryset(QuerySet):
     def _clone(self):
         # copy everything but the results cache
         clone = copy.deepcopy(self)  # deepcopy because .filters is immutable
-        clone._suggestions = None
-        clone._facets = None
+        # clone._suggestions = None
+        # clone._facets = None
         clone._result_cache = []  # store
         clone._total = None
         return clone
@@ -219,7 +219,6 @@ class EsQueryset(QuerySet):
             return self._result_cache
 
         body = self.make_search_body()
-
         if self.facets_fields:
             aggs = dict([
                 (field, {'terms':

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-import json
 import mock
 
 from rest_framework import status
+from rest_framework import VERSION
 from rest_framework.settings import api_settings
 from rest_framework.test import APIClient
 
@@ -14,8 +14,8 @@ from elasticsearch import TransportError
 
 from django_elasticsearch.client import es_client
 from django_elasticsearch.tests.utils import withattrs
-from test_app.models import TestModel
 from django_elasticsearch.contrib.restframework import ElasticsearchFilterBackend
+from test_app.models import TestModel
 
 
 class Fake():
@@ -35,7 +35,12 @@ class EsRestFrameworkTestCase(TestCase):
         TestModel.es.do_update()
 
         self.fake_request = Fake()
-        self.fake_request.QUERY_PARAMS = {api_settings.SEARCH_PARAM: 'test'}
+
+        if int(VERSION[0]) < 3:
+            self.fake_request.QUERY_PARAMS = {api_settings.SEARCH_PARAM: 'test'}
+        else:
+            self.fake_request.query_params = {api_settings.SEARCH_PARAM: 'test'}
+
         self.fake_request.GET = {api_settings.SEARCH_PARAM: 'test'}
         self.fake_view = Fake()
         self.fake_view.action = 'list'

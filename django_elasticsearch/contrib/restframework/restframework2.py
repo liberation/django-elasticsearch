@@ -2,15 +2,15 @@ from django.http import Http404
 from django.conf import settings
 from django.core.paginator import Page
 
-from rest_framework.response import Response
+
 from rest_framework.settings import api_settings
-from rest_framework.mixins import ListModelMixin
-from rest_framework.decorators import list_route
+from rest_framework.pagination import PaginationSerializer
+from rest_framework.serializers import BaseSerializer
 from rest_framework.filters import OrderingFilter
 from rest_framework.filters import DjangoFilterBackend
 
-from rest_framework.pagination import PaginationSerializer
-from rest_framework.serializers import BaseSerializer
+from django_elasticsearch.models import EsIndexable
+
 
 from elasticsearch import NotFoundError
 try:
@@ -18,41 +18,6 @@ try:
 except ImportError:
     from urllib3.connection import ConnectionError
 from elasticsearch import TransportError
-from django_elasticsearch.models import EsIndexable
-
-
-class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
-    def filter_queryset(self, request, queryset, view):
-        model = queryset.model
-
-        if view.action == 'list':
-            if not issubclass(model, EsIndexable):
-                raise ValueError("Model {0} is not indexed in Elasticsearch. "
-                                 "Make it indexable by subclassing "
-                                 "django_elasticsearch.models.EsIndexable."
-                                 "".format(model))
-            search_param = getattr(view, 'search_param', api_settings.SEARCH_PARAM)
-            query = request.QUERY_PARAMS.get(search_param, '')
-
-            # order of precedence : query params > class attribute > model Meta attribute
-            ordering = self.get_ordering(request)
-            if not ordering:
-                ordering = self.get_default_ordering(view)
-
-            filterable = getattr(view, 'filter_fields', [])
-            filters = dict([(k, v)
-                            for k, v in request.GET.iteritems()
-                            if k in filterable])
-
-            q = queryset.query(query).filter(**filters)
-            if ordering:
-                q = q.order_by(*ordering)
-
-            return q
-        else:
-            return super(ElasticsearchFilterBackend, self).filter_queryset(
-                request, queryset, view
-            )
 
 
 class ElasticsearchPaginationSerializer(PaginationSerializer):
@@ -88,6 +53,40 @@ class FakeSerializer(BaseSerializer):
 
     def to_native(self, obj):
         return obj
+
+
+class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        model = queryset.model
+
+        if view.action == 'list':
+            if not issubclass(model, EsIndexable):
+                raise ValueError("Model {0} is not indexed in Elasticsearch. "
+                                 "Make it indexable by subclassing "
+                                 "django_elasticsearch.models.EsIndexable."
+                                 "".format(model))
+            search_param = getattr(view, 'search_param', api_settings.SEARCH_PARAM)
+            query = request.QUERY_PARAMS.get(search_param, '')
+
+            # order of precedence : query params > class attribute > model Meta attribute
+            ordering = self.get_ordering(request)
+            if not ordering:
+                ordering = self.get_default_ordering(view)
+
+            filterable = getattr(view, 'filter_fields', [])
+            filters = dict([(k, v)
+                            for k, v in request.GET.iteritems()
+                            if k in filterable])
+
+            q = queryset.query(query).filter(**filters)
+            if ordering:
+                q = q.order_by(*ordering)
+
+            return q
+        else:
+            return super(ElasticsearchFilterBackend, self).filter_queryset(
+                request, queryset, view
+            )
 
 
 class IndexableModelMixin(object):
@@ -164,22 +163,3 @@ class IndexableModelMixin(object):
                                        and self.FILTER_STATUS_MESSAGE_FAILED
                                        or self.FILTER_STATUS_MESSAGE_OK)
         return r
-
-
-class AutoCompletionMixin(ListModelMixin):
-    """
-    Add a route to the ViewSet to get a list of completion suggestion.
-    """
-
-    @list_route()
-    def autocomplete(self, request, **kwargs):
-        field_name = request.QUERY_PARAMS.get('f', None)
-        query = request.QUERY_PARAMS.get('q', '')
-
-        try:
-            data = self.model.es.complete(field_name, query)
-        except ValueError:
-            raise Http404("field {0} is either missing or "
-                          "not in Elasticsearch.completion_fields.")
-
-        return Response(data)
