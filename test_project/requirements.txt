@@ -7,7 +7,7 @@
 # djangorestframework>=3.0, <4.0  # for django>=1.8
 
 # dev tools
-mock
-six
-django-filter
-django-extensions
+mock==1.0.1
+six==1.9.0
+django-extensions==1.5.5
+django-filter==0.10.0
