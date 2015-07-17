@@ -398,6 +398,19 @@ Or to test one specific python/django version combo:
 tox -e py27-django16
 ```
 
+Or a specific test case / unit test, with a weird syntax:
+Django 1.4
+```
+tox -epy27-django14 -- .EsQuerysetTestCase
+tox -epy27-django14 -- .EsQuerysetTestCase.test_use_cache
+```
+
+Django >1.6
+```
+tox -epy27-django16 -- .tests.test_qs.EsQuerysetTestCase
+tox -epy27-django16 -- .tests.test_qs.EsQuerysetTestCase.test_use_cache
+```
+
 
 The old way
 -----------
