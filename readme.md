@@ -370,7 +370,8 @@ CONTRIB
 LOGGING
 =======
 
-Despite what the pyelasticsearch docs says, i didn't have any luck with the 'pyelasticsearch' logger, the 'elasticsearch' and 'elasticsearch.trace' loggers, however, are working well.
+Two loggers are available 'elasticsearch' and 'elasticsearch.trace'.
+
 
 FAILING GRACEFULLY
 ==================
@@ -382,7 +383,7 @@ You can also use the ```MyModel.es.check_cluster()``` method which returns True 
 TESTS
 =====
 
-Django-elasticsearch has a 95% test coverage, and tests pass for django 1.4 to 1.8 (contrib.restframework aside).
+Django-elasticsearch has a 95% test coverage, and tests pass for django 1.4 to 1.8.
 
 Using tox
 ---------
@@ -418,12 +419,3 @@ Coverage
 coverage run --source=django_elasticsearch --omit='*tests*','*migrations*' manage.py test django_elasticsearch
 ```
 
-**Notes**:
-* django-restframework version 3 is required for django >1.8, but since the api changed a lot, it's not working right now.
-
-TODO
-====
-
-* contrib.restframework 3.0 (django 1.8) & tests
-* async indexation example (with celery?)
-* advanced docs / docstrings
