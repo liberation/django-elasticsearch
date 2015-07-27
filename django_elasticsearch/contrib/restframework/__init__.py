@@ -1,6 +1,6 @@
 from rest_framework import VERSION
 
-from django_elasticsearch.contrib.restframework.restframework import AutoCompletionMixin
+from django_elasticsearch.contrib.restframework.base import AutoCompletionMixin
 
 if int(VERSION[0]) < 3:
     from django_elasticsearch.contrib.restframework.restframework2 import IndexableModelMixin
