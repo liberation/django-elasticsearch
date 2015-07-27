@@ -3,7 +3,6 @@ import json
 
 from django.conf import settings
 from django.utils import importlib
-from django.db.models import FieldDoesNotExist
 
 from django_elasticsearch.query import EsQueryset
 from django_elasticsearch.client import es_client
@@ -61,7 +60,8 @@ class ElasticsearchManager():
         self._mapping = None
 
     def get_index(self):
-        return self.model.Elasticsearch.index
+        return self.connection.settings_dict['NAME']
+        #return self.model.Elasticsearch.index
 
     @property
     def index(self):
@@ -239,47 +239,6 @@ class ElasticsearchManager():
                         self.model._meta.many_to_many]
 
         return self.model.Elasticsearch.fields or model_fields
-
-    def make_mapping(self):
-        """
-        Create the model's es mapping on the fly
-        """
-        mappings = {}
-
-        for field_name in self.get_fields():
-            try:
-                field = self.model._meta.get_field(field_name)
-            except FieldDoesNotExist:
-                # abstract field
-                mapping = {}
-            else:
-                mapping = {'type': ELASTICSEARCH_FIELD_MAP.get(
-                    field.get_internal_type(), 'string')}
-            try:
-                # if an analyzer is set as default, use it.
-                # TODO: could be also tokenizer, filter, char_filter
-                if mapping['type'] == 'string':
-                    analyzer = settings.ELASTICSEARCH_SETTINGS['analysis']['default']
-                    mapping['analyzer'] = analyzer
-            except (ValueError, AttributeError, KeyError, TypeError):
-                pass
-            try:
-                mapping.update(self.model.Elasticsearch.mappings[field_name])
-            except (AttributeError, KeyError, TypeError):
-                pass
-            mappings[field_name] = mapping
-
-        # add a completion mapping for every auto completable field
-        fields = self.model.Elasticsearch.completion_fields or []
-        for field_name in fields:
-            complete_name = "{0}_complete".format(field_name)
-            mappings[complete_name] = {"type": "completion"}
-
-        return {
-            self.doc_type: {
-                "properties": mappings
-            }
-        }
 
     def get_mapping(self):
         if self._mapping is None:
