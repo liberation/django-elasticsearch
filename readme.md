@@ -435,3 +435,7 @@ Coverage
 coverage run --source=django_elasticsearch --omit='*tests*','*migrations*' manage.py test django_elasticsearch
 ```
 
+NOTES
+=====
+
+Why not make a django database backend ? Because django *does not* support non relational databases, which means that the db backend API is very heavily designed around SQL. I'm usually in favor of hiding the complexity, but in this case for every bit that feels right - auto db and test db creation, client handling, .. - there is one that feels wrong and keeping up with the api changes makes it worse. There is an avorted prototype branch (feature/db-backend) going this way though.
