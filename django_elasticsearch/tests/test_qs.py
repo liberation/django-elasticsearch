@@ -340,3 +340,19 @@ class EsQuerysetTestCase(TestCase):
         from django_elasticsearch import client as test_client
         reload(test_client)
         self.assertTrue(test_client.es_client.ping())
+
+    def test_extra(self):
+        q = TestModel.es.search("Jack").extra({
+            "highlight": {
+                "fields" : {
+                    "first_name" : {}
+                }
+            }
+        })
+
+        self.assertTrue(q.count(), 2)
+        hl = q.response['hits']['hits'][0]['highlight']['first_name'][0]
+        self.assertEqual(hl, '<em>Jack</em>')
+
+        # make sure it didn't break the query otherwise
+        self.assertTrue(q.deserialize())

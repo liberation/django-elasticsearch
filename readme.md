@@ -274,6 +274,9 @@ Note that es.search automatically add the default facets set on the model to the
 * **es.queryset.deserialize**()
     Makes the queryset return model instances instead of documents.
 
+* **es.queryset.extra**(body)
+    Blindly updates the elasticsearch query body with ```body``` allowing to use any non-implemented elasticsearch feature.
+
 **Does not return an EsQueryset** and thus are not chainable.  
 * **es.queryset.count**()
 
