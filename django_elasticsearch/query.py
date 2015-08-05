@@ -25,6 +25,7 @@ class EsQueryset(QuerySet):
         self.mode = self.MODE_SEARCH
         self.mlt_kwargs = None
         self.filters = {}
+        self.extra_body = None
         self.facets_fields = None
         self.suggest_fields = None
 
@@ -214,9 +215,9 @@ class EsQueryset(QuerySet):
         self.do_search()
         return self._response
 
-    def do_search(self, extra_body=None):
+    def do_search(self):
         if self.is_evaluated:
-            return self._result_cache
+            return self
 
         body = self.make_search_body()
 
@@ -256,6 +257,8 @@ class EsQueryset(QuerySet):
         if self._stop:
             search_params['size'] = self._stop - self._start
 
+        if self.extra_body:
+            body.update(self.extra_body)
         search_params['body'] = body
         self._body = body
 
@@ -420,3 +423,10 @@ class EsQueryset(QuerySet):
     def deserialize(self):
         self._deserialize = True
         return self
+
+    def extra(self, body):
+        # Note: will .update() the body of the query
+        # so it is possible to override anything
+        clone = self._clone()
+        clone.extra_body = body
+        return clone
