@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 import mock
-from unittest import skipIf
 
 from rest_framework import status
+from rest_framework import VERSION
 from rest_framework.settings import api_settings
 from rest_framework.test import APIClient
 
-from django import VERSION as DJANGO_VERSION
 from django.test import TestCase
 from django.db.models.query import QuerySet
 from django.contrib.auth.models import User
@@ -15,16 +14,14 @@ from elasticsearch import TransportError
 
 from django_elasticsearch.client import es_client
 from django_elasticsearch.tests.utils import withattrs
-from test_app.models import TestModel
 from django_elasticsearch.contrib.restframework import ElasticsearchFilterBackend
+from test_app.models import TestModel
 
 
 class Fake():
     pass
 
 
-@skipIf(DJANGO_VERSION >= (1, 8),
-        'django_elasticsearch.contrib.restframework is not yet compatible with the new API, skipping.')
 class EsRestFrameworkTestCase(TestCase):
     def setUp(self):
         TestModel.es.create_index()
@@ -38,7 +35,12 @@ class EsRestFrameworkTestCase(TestCase):
         TestModel.es.do_update()
 
         self.fake_request = Fake()
-        self.fake_request.QUERY_PARAMS = {api_settings.SEARCH_PARAM: 'test'}
+
+        if int(VERSION[0]) < 3:
+            self.fake_request.QUERY_PARAMS = {api_settings.SEARCH_PARAM: 'test'}
+        else:
+            self.fake_request.query_params = {api_settings.SEARCH_PARAM: 'test'}
+
         self.fake_request.GET = {api_settings.SEARCH_PARAM: 'test'}
         self.fake_view = Fake()
         self.fake_view.action = 'list'
@@ -149,19 +151,20 @@ class EsRestFrameworkTestCase(TestCase):
             'username': u'test',
             'password': u'test'
         })
-        id = TestModel.objects.latest('id').id
-        self.assertEqual(r.status_code, status.HTTP_201_CREATED)  # created
 
-        r = client.put('/rf/tests/{0}/'.format(id), {
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)  # created
+        pk = r.data['id']
+
+        r = client.patch('/rf/tests/{0}/'.format(pk), {
             'username': u'test2',
             'password': u'test'
         }, format='json')
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(TestModel.objects.get(pk=id).username, 'test2')
+        self.assertEqual(TestModel.objects.get(pk=pk).username, 'test2')
 
-        r = client.delete('/rf/tests/{0}/'.format(id))
+        r = client.delete('/rf/tests/{0}/'.format(pk))
         self.assertEqual(r.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(TestModel.objects.filter(pk=id).exists())
+        self.assertFalse(TestModel.objects.filter(pk=pk).exists())
 
     def test_fallback_gracefully(self):
         # Note: can't use override settings because of how restframework handle settings :(

@@ -37,15 +37,33 @@ class TestListView(JsonViewMixin, ElasticsearchListView):
         return self.object_list
 
 
-try:
-    from rest_framework.viewsets import ModelViewSet
-    from django_elasticsearch.contrib.restframework import AutoCompletionMixin
-    from django_elasticsearch.contrib.restframework import IndexableModelMixin
-except ImportError:
-    pass
-else:
+### contrib.restframework test viewsets
+from rest_framework.viewsets import ModelViewSet
+from django_elasticsearch.contrib.restframework import AutoCompletionMixin
+from django_elasticsearch.contrib.restframework import IndexableModelMixin
+
+
+from rest_framework import VERSION
+
+if int(VERSION[0]) < 3:
     class TestViewSet(AutoCompletionMixin, IndexableModelMixin, ModelViewSet):
         model = TestModel
+        filter_fields = ('username',)
+        ordering_fields = ('id',)
+        search_param = 'q'
+        paginate_by = 10
+        paginate_by_param = 'page_size'
+else:
+    from rest_framework.serializers import ModelSerializer
+
+    class TestSerializer(ModelSerializer):
+        class Meta:
+            model = TestModel
+
+    class TestViewSet(AutoCompletionMixin, IndexableModelMixin, ModelViewSet):
+        model = TestModel
+        queryset = TestModel.objects.all()
+        serializer_class = TestSerializer
         filter_fields = ('username',)
         ordering_fields = ('id',)
         search_param = 'q'

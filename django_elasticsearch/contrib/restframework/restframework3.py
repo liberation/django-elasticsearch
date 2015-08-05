@@ -1,29 +1,21 @@
 from django.http import Http404
 from django.conf import settings
-from django.core.paginator import Page
 
 from rest_framework.response import Response
+from rest_framework.compat import OrderedDict
 from rest_framework.settings import api_settings
-from rest_framework.mixins import ListModelMixin
-from rest_framework.decorators import list_route
 from rest_framework.filters import OrderingFilter
 from rest_framework.filters import DjangoFilterBackend
-try:
-    from rest_framework.pagination import PaginationSerializer
-except ImportError:
-    # TODO: restframework 3.0
-    class PaginationSerializer(object):
-        pass
 
-from rest_framework.serializers import BaseSerializer
+from django_elasticsearch.models import EsIndexable
 
-from elasticsearch import NotFoundError
+
 try:
     from elasticsearch import ConnectionError
 except ImportError:
     from urllib3.connection import ConnectionError
 from elasticsearch import TransportError
-from django_elasticsearch.models import EsIndexable
+from elasticsearch import NotFoundError
 
 
 class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
@@ -37,10 +29,10 @@ class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
                                  "django_elasticsearch.models.EsIndexable."
                                  "".format(model))
             search_param = getattr(view, 'search_param', api_settings.SEARCH_PARAM)
-            query = request.QUERY_PARAMS.get(search_param, '')
+            query = request.query_params.get(search_param, '')
 
             # order of precedence : query params > class attribute > model Meta attribute
-            ordering = self.get_ordering(request)
+            ordering = self.get_ordering(request, queryset, view)
             if not ordering:
                 ordering = self.get_default_ordering(view)
 
@@ -58,41 +50,6 @@ class ElasticsearchFilterBackend(OrderingFilter, DjangoFilterBackend):
             return super(ElasticsearchFilterBackend, self).filter_queryset(
                 request, queryset, view
             )
-
-
-class ElasticsearchPaginationSerializer(PaginationSerializer):
-    @property
-    def data(self):
-        if self._data is None:
-            if type(self.object) is Page:
-                page = self.object
-                self._data = {
-                    'count': page.paginator.count,
-                    'previous': self.fields['previous'].to_native(page),
-                    'next': self.fields['next'].to_native(page),
-                    'results': page.object_list
-                }
-
-        return super(ElasticsearchPaginationSerializer, self).data
-
-
-class FakeSerializer(BaseSerializer):
-    @property
-    def base_fields(self):
-        return {}
-
-    @property
-    def data(self):
-        self._data = super(FakeSerializer, self).data
-        if type(self._data) == list:  # better way ?
-            self._data = {
-                'count': self.object.count(),
-                'results': self._data
-            }
-        return self._data
-
-    def to_native(self, obj):
-        return obj
 
 
 class IndexableModelMixin(object):
@@ -113,23 +70,11 @@ class IndexableModelMixin(object):
         except NotFoundError:
             raise Http404
 
-    def get_serializer_class(self):
-        if self.action in ['list', 'retrieve'] and not self.es_failed:
-            # let's return the elasticsearch response as it is.
-            return FakeSerializer
-        return super(IndexableModelMixin, self).get_serializer_class()
-
-    def get_pagination_serializer(self, page):
-        if not self.es_failed:
-            context = self.get_serializer_context()
-            return ElasticsearchPaginationSerializer(instance=page, context=context)
-        return super(IndexableModelMixin, self).get_pagination_serializer(page)
-
     def get_queryset(self):
         if self.action in ['list', 'retrieve'] and not self.es_failed:
             return self.model.es.search("")
         # db fallback
-        return super(IndexableModelMixin, self).get_queryset()
+        return self.queryset or self.model.objects.all()
 
     def filter_queryset(self, queryset):
         if self.es_failed:
@@ -139,25 +84,18 @@ class IndexableModelMixin(object):
         else:
             return super(IndexableModelMixin, self).filter_queryset(queryset)
 
-    def list(self, request, *args, **kwargs):
-        r = super(IndexableModelMixin, self).list(request, *args, **kwargs)
-        if not self.es_failed:
-            if getattr(self.object_list, 'facets', None):
-                r.data['facets'] = self.object_list.facets
-
-            if getattr(self.object_list, 'suggestions', None):
-                r.data['suggestions'] = self.object_list.suggestions
-
-        return r
-
     def dispatch(self, request, *args, **kwargs):
         try:
             r = super(IndexableModelMixin, self).dispatch(request, *args, **kwargs)
         except (ConnectionError, TransportError), e:
+            # reset object list
+            self.queryset = None
             self.es_failed = True
+            # db fallback
             r = super(IndexableModelMixin, self).dispatch(request, *args, **kwargs)
             if settings.DEBUG and isinstance(r.data, dict):
                 r.data["filter_fail_cause"] = str(e)
+
         # Add a failed message in case something went wrong with elasticsearch
         # for example if the cluster went down.
         if isinstance(r.data, dict) and self.action in ['list', 'retrieve']:
@@ -166,21 +104,25 @@ class IndexableModelMixin(object):
                                        or self.FILTER_STATUS_MESSAGE_OK)
         return r
 
+    def list(self, request, *args, **kwargs):
+        if self.es_failed:
+            return super(IndexableModelMixin, self).list(request, *args, **kwargs)
+        else:
+            # bypass serialization
+            queryset = self.filter_queryset(self.get_queryset())
 
-class AutoCompletionMixin(ListModelMixin):
-    """
-    Add a route to the ViewSet to get a list of completion suggestion.
-    """
+            # evaluates the query and cast it to list (why ?)
+            page = self.paginate_queryset(queryset)
 
-    @list_route()
-    def autocomplete(self, request, **kwargs):
-        field_name = request.QUERY_PARAMS.get('f', None)
-        query = request.QUERY_PARAMS.get('q', '')
+            data = OrderedDict([
+                ('count', queryset.count()),
+                ('results', page)
+            ])
 
-        try:
-            data = self.model.es.complete(field_name, query)
-        except ValueError:
-            raise Http404("field {0} is either missing or "
-                          "not in Elasticsearch.completion_fields.")
+            if queryset.facets:
+                data['facets'] = queryset.facets
 
-        return Response(data)
+            if queryset.suggestions:
+                data['suggestions'] = queryset.suggestions
+
+            return Response(data)

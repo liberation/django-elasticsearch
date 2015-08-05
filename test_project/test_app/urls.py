@@ -11,15 +11,10 @@ urlpatterns = patterns(
     url(r'^tests/$', TestListView.as_view(), name='test_list'),
 )
 
-import rest_framework
-if int(rest_framework.VERSION.split('.')[0]) < 3:
-    try:
-        from test_app.views import TestViewSet
-        from rest_framework.routers import DefaultRouter
-    except ImportError:
-        pass
-    else:
-        router = DefaultRouter()
-        router.register(r'rf/tests', TestViewSet)
+from test_app.views import TestViewSet
+from rest_framework.routers import DefaultRouter
 
-        urlpatterns += router.urls
+router = DefaultRouter()
+router.register(r'rf/tests', TestViewSet)
+
+urlpatterns += router.urls
