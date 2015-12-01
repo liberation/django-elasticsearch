@@ -12,8 +12,14 @@ class AutoCompletionMixin(ListModelMixin):
 
     @list_route()
     def autocomplete(self, request, **kwargs):
-        field_name = request.QUERY_PARAMS.get('f', None)
-        query = request.QUERY_PARAMS.get('q', '')
+        try:
+            qp = request.query_params
+        except AttributeError:
+            # restframework 2
+            qp = request.QUERY_PARAMS
+
+        field_name = qp.get('f', None)
+        query = qp.get('q', '')
 
         try:
             data = self.model.es.complete(field_name, query)
