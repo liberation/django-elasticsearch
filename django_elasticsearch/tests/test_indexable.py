@@ -51,22 +51,22 @@ class EsIndexableTestCase(TestCase):
 
     def test_mlt(self):
         qs = self.instance.es.mlt(mlt_fields=['first_name',], min_term_freq=1, min_doc_freq=1)
-        self.assertEqual(len(qs), 0)
+        self.assertEqual(qs.count(), 0)
 
         a = TestModel.objects.create(username=u"2", first_name=u"woot", last_name=u"foo fooo")
         a.es.do_index()
         a.es.do_update()
 
         results = self.instance.es.mlt(mlt_fields=['first_name',], min_term_freq=1, min_doc_freq=1).deserialize()
-        self.assertEqual(len(results), 1)
+        self.assertEqual(results.count(), 1)
         self.assertEqual(results[0], a)
 
     def test_search(self):
         hits = TestModel.es.search('wee')
-        self.assertEqual(len(hits), 0)
+        self.assertEqual(hits.count(), 0)
 
         hits = TestModel.es.search('woot')
-        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits.count(), 1)
 
     def test_search_with_facets(self):
         s = TestModel.es.search('whatever').facet(['first_name',])
@@ -78,13 +78,13 @@ class EsIndexableTestCase(TestCase):
 
     def test_fuzziness(self):
         hits = TestModel.es.search('woo')  # instead of woot
-        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits.count(), 1)
 
         hits = TestModel.es.search('woo', fuzziness=0)
-        self.assertEqual(len(hits), 0)
+        self.assertEqual(hits.count(), 0)
 
         hits = TestModel.es.search('waat', fuzziness=2)
-        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits.count(), 1)
 
     @withattrs(TestModel.Elasticsearch, 'fields', ['username'])
     @withattrs(TestModel.Elasticsearch, 'mappings', {"username": {"boost": 20}})
