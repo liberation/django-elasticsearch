@@ -75,12 +75,13 @@ class EsQuerysetTestCase(TestCase):
         with mock.patch.object(EsQueryset,
                                'make_search_body') as mocked:
             mocked.return_value = fake_body
-            qs = TestModel.es.search("")
+            qs = TestModel.es.search()
             # eval
             list(qs)
             # use cache
             list(qs)
-        mocked.assert_called_once()
+
+        self.assertEqual(len(mocked.mock_calls), 1)
 
         # same for a sliced query
         with mock.patch.object(EsQueryset,
@@ -90,7 +91,8 @@ class EsQuerysetTestCase(TestCase):
             list(qs[0:5])
             # use cache
             list(qs[0:5])
-        mocked.assert_called_once()
+
+        self.assertEqual(len(mocked.mock_calls), 1)
 
     def test_facets(self):
         qs = TestModel.es.queryset.facet(['last_name'])
