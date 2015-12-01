@@ -71,10 +71,9 @@ class EsIndexableTestCase(TestCase):
     def test_search_with_facets(self):
         s = TestModel.es.search('whatever').facet(['first_name',])
         self.assertEqual(s.count(), 0)
-        expected = {u'doc_count': 1,
-                    u'first_name': {u'buckets': [{u'doc_count': 1,
-                                                  u'key': u'woot'}]}}
-        self.assertEqual(s.facets, expected)
+        expected = [{u'doc_count': 1, u'key': u'woot'}]
+        self.assertEqual(s.facets['doc_count'], 1)
+        self.assertEqual(s.facets['first_name']['buckets'], expected)
 
     def test_fuzziness(self):
         hits = TestModel.es.search('woo')  # instead of woot

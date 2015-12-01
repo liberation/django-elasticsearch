@@ -96,18 +96,15 @@ class EsQuerysetTestCase(TestCase):
 
     def test_facets(self):
         qs = TestModel.es.queryset.facet(['last_name'])
-        expected = {u'doc_count': 4,
-                    u'last_name': {u'buckets': [{u'doc_count': 3,
-                                                 u'key': u'smith'},
-                                                {u'doc_count': 1,
-                                                 u'key': u'bar'}]}}
-        self.assertEqual(expected, qs.facets)
+        expected = [{u'doc_count': 3, u'key': u'smith'},
+                    {u'doc_count': 1, u'key': u'bar'}]
+        self.assertEqual(qs.facets['doc_count'], 4)
+        self.assertEqual(qs.facets['last_name']['buckets'], expected)
 
     def test_non_global_facets(self):
         qs = TestModel.es.search("Foo").facet(['last_name'], use_globals=False)
-        expected = {u'last_name': {u'buckets': [{u'doc_count': 1,
-                                                 u'key': u'bar'}]}}
-        self.assertEqual(expected, qs.facets)
+        expected = [{u'doc_count': 1, u'key': u'bar'}]
+        self.assertEqual(qs.facets['last_name']['buckets'], expected)
 
     def test_suggestions(self):
         qs = TestModel.es.search('smath').suggest(['last_name',], limit=3)

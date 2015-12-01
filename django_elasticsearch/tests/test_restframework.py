@@ -111,10 +111,9 @@ class EsRestFrameworkTestCase(TestCase):
         queryset = TestModel.es.all()
         filter_backend = ElasticsearchFilterBackend()
         s = filter_backend.filter_queryset(self.fake_request, queryset, self.fake_view)
-        expected = {u'doc_count': 3,
-                    u'first_name': {u'buckets': [{u'doc_count': 1,
-                                                  u'key': u'test'}]}}
-        self.assertEqual(s.facets, expected)
+        expected = [{u'doc_count': 1, u'key': u'test'}]
+        self.assertEqual(s.facets['doc_count'], 3)
+        self.assertEqual(s.facets['first_name']['buckets'], expected)
 
     @withattrs(TestModel.Elasticsearch, 'facets_fields', ['first_name',])
     def test_faceted_viewset(self):
