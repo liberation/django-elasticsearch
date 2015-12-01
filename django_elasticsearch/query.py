@@ -115,21 +115,6 @@ class EsQueryset(QuerySet):
         self.count()
         return self._total != 0
 
-    def __len__(self):
-        # if we pass a body without a query, elasticsearch complains
-        if self._total:
-            return self._total
-        if self.mode == self.MODE_MLT:
-            # Note: there is no count on the mlt api, need to fetch the results
-            self.do_search()
-        else:
-            r = es_client.count(
-                index=self.index,
-                doc_type=self.doc_type,
-                body=self.make_search_body() or None)
-            self._total = r['count']
-        return self._total
-
     def make_search_body(self):
         body = {}
         search = {}
@@ -291,6 +276,7 @@ class EsQueryset(QuerySet):
         self._max_score = r['hits']['max_score']
 
         self._total = r['hits']['total']
+
         return self
 
     def query(self, query):
@@ -417,7 +403,19 @@ class EsQueryset(QuerySet):
         return self._suggestions
 
     def count(self):
-        return self.__len__()
+        # if we pass a body without a query, elasticsearch complains
+        if self._total:
+            return self._total
+        if self.mode == self.MODE_MLT:
+            # Note: there is no count on the mlt api, need to fetch the results
+            self.do_search()
+        else:
+            r = es_client.count(
+                index=self.index,
+                doc_type=self.doc_type,
+                body=self.make_search_body() or None)
+            self._total = r['count']
+        return self._total
 
     def deserialize(self):
         self._deserialize = True
