@@ -2,7 +2,7 @@ from django.http import Http404
 from django.conf import settings
 
 from rest_framework.response import Response
-from rest_framework.compat import OrderedDict
+from rest_framework.serializers import OrderedDict
 from rest_framework.settings import api_settings
 from rest_framework.filters import OrderingFilter
 from rest_framework.filters import DjangoFilterBackend
