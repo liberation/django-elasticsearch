@@ -75,7 +75,7 @@ class EsQuerysetTestCase(TestCase):
         with mock.patch.object(EsQueryset,
                                'make_search_body') as mocked:
             mocked.return_value = fake_body
-            qs = TestModel.es.search()
+            qs = TestModel.es.search("")
             # eval
             list(qs)
             # use cache
