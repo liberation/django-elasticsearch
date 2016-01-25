@@ -59,6 +59,14 @@ Like a regular Queryset, an EsQueryset is lazy, and if evaluated, returns a list
 
 > django-elasticsearch **DOES NOT** index documents by itself unless told to, either set settings.ELASTICSEARCH_AUTO_INDEX to True to index your models when you save them, or call directly myinstance.es.do_index().
 
+To specify the size of output of documents, it is necessary to make a slice of data, for example:
+
+```
+len(list(MyModel.es.search('value')))
+>>> 10
+len(list(MyModel.es.search('value')[0:100]))
+>>> 42
+```
 
 CONFIGURATION
 =============
