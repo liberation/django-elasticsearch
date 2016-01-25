@@ -107,7 +107,7 @@ Each EsIndexable model receive an Elasticsearch class that contains its options 
     Defaults to None  
     The fields to be indexed by elasticsearch, if left to None, all models fields will be indexed.
 
-* **mapping**  
+* **mappings**  
     Defaults to None  
     You can override some or all of the fields mapping with this dictionnary
     Example:  
@@ -118,7 +118,7 @@ Each EsIndexable model receive an Elasticsearch class that contains its options 
         title = models.CharField(max_length=64)
         
         class Elasticsearch(EsIndexable.Elasticsearch):
-            mappings = {'title': {'boost': 2.0}
+            mappings = {'title': {'boost': 2.0}}
     ```
     In this example we only override the 'boost' attribute of the 'title' field, but there are plenty of possible configurations, see [the docs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-put-mapping.html).
 
