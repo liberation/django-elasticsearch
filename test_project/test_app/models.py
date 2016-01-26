@@ -104,6 +104,7 @@ class Test2Model(EsIndexable):
     oto = models.OneToOneField(Dummy, null=True, related_name="toto")
     fkself = models.ForeignKey('self', null=True, related_name="toselffk")  # a bit of a special case
     mtm = models.ManyToManyField(Dummy, related_name="tomtm")
+    mtmt = models.ManyToManyField(Dummy, related_name="mtmt", through='DummyThrough')
 
     class Elasticsearch(EsIndexable.Elasticsearch):
         index = 'django-test'
@@ -117,3 +118,9 @@ class Test2Model(EsIndexable):
     @property
     def abstract_prop(self):
         return 'weez'
+
+
+class DummyThrough(models.Model):
+    dummy = models.ForeignKey(Dummy)
+    test = models.ForeignKey(Test2Model)
+    extra = models.DateTimeField(null=True)
