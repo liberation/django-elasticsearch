@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 from django.conf import settings
 from django.db.models import Model
-from django.db.models.signals import post_save, post_delete, post_syncdb
+from django.db.models.signals import post_save, post_delete
 from django.db.models.signals import class_prepared
+try:
+    from django.db.models.signals import post_migrate
+except ImportError:  # django <= 1.6
+    from django.db.models.signals import post_syncdb as post_migrate
 
 from django_elasticsearch.serializers import EsJsonSerializer
 from django_elasticsearch.managers import ElasticsearchManager
@@ -78,4 +82,4 @@ if getattr(settings, 'ELASTICSEARCH_AUTO_INDEX', False):
     # see: https://code.djangoproject.com/ticket/9318
     post_save.connect(es_save_callback)
     post_delete.connect(es_delete_callback)
-    post_syncdb.connect(es_syncdb_callback)
+    post_migrate.connect(es_syncdb_callback)

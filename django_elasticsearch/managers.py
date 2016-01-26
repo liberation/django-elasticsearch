@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 import json
+try:
+    import importlib
+except ImportError:  # python < 2.7
+    from django.utils import importlib
 
 from django.conf import settings
-from django.utils import importlib
 from django.db.models import FieldDoesNotExist
 
 from django_elasticsearch.query import EsQueryset
