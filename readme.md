@@ -59,6 +59,14 @@ Like a regular Queryset, an EsQueryset is lazy, and if evaluated, returns a list
 
 > django-elasticsearch **DOES NOT** index documents by itself unless told to, either set settings.ELASTICSEARCH_AUTO_INDEX to True to index your models when you save them, or call directly myinstance.es.do_index().
 
+To specify the size of output of documents, it is necessary to make a slice of data, for example:
+
+```
+len(list(MyModel.es.search('value')))
+>>> 10
+len(list(MyModel.es.search('value')[0:100]))
+>>> 42
+```
 
 CONFIGURATION
 =============
@@ -107,7 +115,7 @@ Each EsIndexable model receive an Elasticsearch class that contains its options 
     Defaults to None  
     The fields to be indexed by elasticsearch, if left to None, all models fields will be indexed.
 
-* **mapping**  
+* **mappings**  
     Defaults to None  
     You can override some or all of the fields mapping with this dictionnary
     Example:  
@@ -118,7 +126,7 @@ Each EsIndexable model receive an Elasticsearch class that contains its options 
         title = models.CharField(max_length=64)
         
         class Elasticsearch(EsIndexable.Elasticsearch):
-            mappings = {'title': {'boost': 2.0}
+            mappings = {'title': {'boost': 2.0}}
     ```
     In this example we only override the 'boost' attribute of the 'title' field, but there are plenty of possible configurations, see [the docs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-put-mapping.html).
 
