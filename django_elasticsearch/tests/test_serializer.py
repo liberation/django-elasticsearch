@@ -6,7 +6,7 @@ from django_elasticsearch.tests.utils import withattrs
 from django_elasticsearch.serializers import EsJsonSerializer
 from django_elasticsearch.serializers import EsSimpleJsonSerializer
 
-from test_app.models import Dummy
+from test_app.models import Dummy, DummyThrough
 from test_app.models import Test2Model
 
 
@@ -19,11 +19,18 @@ class EsJsonSerializerTestCase(TestCase):
     def setUp(self):
         Test2Model.es.flush()
         self.target = Dummy.objects.create()
+        self.targetmtm = Dummy.objects.create()
         self.instance = Test2Model.objects.create(fk=self.target,
                                                   oto=self.target)
         # to test for infinite nested recursion
         self.instance.fkself = self.instance
         self.instance.save()
+
+        self.instance.mtm.add(self.targetmtm)
+
+        DummyThrough.objects.create(dummy=self.targetmtm,
+                                    test=self.instance)
+
 
         self.instance.es.do_index()
         Test2Model.es.do_update()
@@ -75,6 +82,11 @@ class EsJsonSerializerTestCase(TestCase):
         u = Test2Model.es.all()[0]
         self.assertTrue('mtm' in u)
         self.assertTrue(type(u['mtm']) is list)
+
+    def test_m2m_through(self):
+        u = Test2Model.es.all()[0]
+        self.assertTrue('mtmt' in u)
+        self.assertTrue(type(u['mtmt']) is list)
 
     @withattrs(Test2Model.Elasticsearch, 'fields', ['abstract_prop', 'abstract_method'])
     def test_abstract_field(self):
