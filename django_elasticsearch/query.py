@@ -48,6 +48,11 @@ class EsQueryset(QuerySet):
         self._result_cache = []  # store
         self._total = None
 
+        # fix for https://github.com/liberation/django-elasticsearch/issues/35
+        self._prefetch_related_lookups = []
+        self._prefetch_done = False
+        self._known_related_objects = {}
+
     def __deepcopy__(self, memo):
         """
         Deep copy of a QuerySet doesn't populate the cache
