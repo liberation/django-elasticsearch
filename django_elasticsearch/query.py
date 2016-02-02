@@ -115,6 +115,10 @@ class EsQueryset(QuerySet):
         self.count()
         return self._total != 0
 
+    def __len__(self):
+        self.do_search()
+        return len(self._result_cache)
+
     def make_search_body(self):
         body = {}
         search = {}
@@ -200,9 +204,12 @@ class EsQueryset(QuerySet):
         self.do_search()
         return self._response
 
+    def _fetch_all(self):
+        self.do_search()
+
     def do_search(self):
         if self.is_evaluated:
-            return self
+            return
 
         body = self.make_search_body()
         if self.facets_fields:
@@ -277,7 +284,7 @@ class EsQueryset(QuerySet):
 
         self._total = r['hits']['total']
 
-        return self
+        return
 
     def query(self, query):
         clone = self._clone()
@@ -427,3 +434,6 @@ class EsQueryset(QuerySet):
         clone = self._clone()
         clone.extra_body = body
         return clone
+
+    def prefetch_related(self):
+        raise NotImplementedError(".prefetch_related is not available for an EsQueryset.")
