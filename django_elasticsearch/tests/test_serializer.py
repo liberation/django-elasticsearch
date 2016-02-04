@@ -18,7 +18,7 @@ class CustomSerializer(EsJsonSerializer):
 class EsJsonSerializerTestCase(TestCase):
     def setUp(self):
         Test2Model.es.flush()
-        self.target = Dummy.objects.create()
+        self.target = Dummy.objects.create(foo='test')
         self.instance = Test2Model.objects.create(fk=self.target,
                                                   oto=self.target)
         # to test for infinite nested recursion
@@ -26,6 +26,10 @@ class EsJsonSerializerTestCase(TestCase):
         self.instance.save()
 
         self.instance.es.do_index()
+
+        self.target.reversefk = self.instance
+        self.target.save()
+
         Test2Model.es.do_update()
 
     def tearDown(self):
@@ -108,3 +112,10 @@ class EsJsonSerializerTestCase(TestCase):
     def test_simple_serializer(self):
         results = Test2Model.es.deserialize([{'id': self.instance.pk},])
         self.assertTrue(self.instance in results)
+
+    @withattrs(Test2Model.Elasticsearch, 'fields', ['id', 'dummies'])
+    def test_reverse_relationship(self):
+        serializer = Test2Model.es.get_serializer()
+        obj = serializer.format(self.instance)
+        expected = {'id': 1, 'dummies': [{'id':1, 'value': 'test'},]}
+        self.assertEqual(obj, expected)

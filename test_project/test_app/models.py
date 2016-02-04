@@ -38,7 +38,12 @@ class TestModel(User, EsIndexable):
 
 class Dummy(models.Model):
     foo = models.CharField(max_length=256, null=True)
+    reversefk = models.ForeignKey('Test2Model',
+                                  related_name='dummies',
+                                  null=True)
 
+    def __unicode__(self):
+        return self.foo
 
 class Test2Serializer(EsJsonSerializer):
     def serialize_type_datetimefield(self, instance, field_name):
