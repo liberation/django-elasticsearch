@@ -42,6 +42,10 @@ class Dummy(models.Model):
                                   related_name='dummies',
                                   null=True)
 
+    reversem2m = models.ManyToManyField('Test2Model',
+                                  related_name='dummiesm2m',
+                                  null=True)
+
     def __unicode__(self):
         return self.foo
 

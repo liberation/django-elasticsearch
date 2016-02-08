@@ -25,12 +25,12 @@ class EsJsonSerializerTestCase(TestCase):
         self.instance.fkself = self.instance
         self.instance.save()
 
-        self.instance.es.do_index()
+        self.instance.mtm.add(self.target)
 
+        # reverse relations
         self.target.reversefk = self.instance
         self.target.save()
-
-        Test2Model.es.do_update()
+        self.target.reversem2m.add(self.instance)
 
     def tearDown(self):
         super(EsJsonSerializerTestCase, self).tearDown()
@@ -56,33 +56,37 @@ class EsJsonSerializerTestCase(TestCase):
         json = self.instance.es.serialize()
         self.assertIn('"char": "FOO"', json)
 
+    @withattrs(Test2Model.Elasticsearch, 'fields', ['id', 'fk'])
     def test_nested_fk(self):
-        # if the target model got a Elasticsearch.serializer, we use it
-        u = Test2Model.es.all()[0]
-        self.assertTrue('fk' in u)
-        self.assertTrue(type(u['fk']) is dict)
+        serializer = Test2Model.es.get_serializer()
+        obj = serializer.format(self.instance)
+        expected = {'id': 1, 'fk': {'id':1, 'value': 'test'}}
+        self.assertEqual(obj, expected)
 
+    @withattrs(Test2Model.Elasticsearch, 'fields', ['id', 'oto'])
     def test_nested_oto(self):
-        # if the target model got a Elasticsearch.serializer, we use it
-        u = Test2Model.es.all()[0]
-        self.assertTrue('oto' in u)
-        self.assertTrue(type(u['oto']) is dict)
+        serializer = Test2Model.es.get_serializer()
+        obj = serializer.format(self.instance)
+        expected = {'id': 1, 'oto': {'id':1, 'value': 'test'}}
+        self.assertEqual(obj, expected)
 
-    @withattrs(Test2Model.Elasticsearch, 'fields', ['fkself',])
+    @withattrs(Test2Model.Elasticsearch, 'fields', ['id', 'fkself'])
     def test_self_fk_depth_test(self):
         Test2Model.es.serializer = None  # reset cache
         serializer = Test2Model.es.get_serializer(max_depth=3)
         obj = serializer.format(self.instance)
         self.assertEqual(dict_depth(obj), 3)
 
+    @withattrs(Test2Model.Elasticsearch, 'fields', ['id', 'mtm'])
     def test_nested_m2m(self):
-        u = Test2Model.es.all()[0]
-        self.assertTrue('mtm' in u)
-        self.assertTrue(type(u['mtm']) is list)
+        serializer = Test2Model.es.get_serializer()
+        obj = serializer.format(self.instance)
+        expected = {'id': 1, 'mtm': [{'id':1, 'value': 'test'},]}
+        self.assertEqual(obj, expected)
 
     @withattrs(Test2Model.Elasticsearch, 'fields', ['abstract_prop', 'abstract_method'])
     def test_abstract_field(self):
-        serializer = Test2Model.es.get_serializer()
+        serializer = Test2Model.es.get_serializer()        
         obj = serializer.format(self.instance)
         expected = {'abstract_method': 'woot', 'abstract_prop': 'weez'}
         self.assertEqual(obj, expected)
@@ -114,8 +118,15 @@ class EsJsonSerializerTestCase(TestCase):
         self.assertTrue(self.instance in results)
 
     @withattrs(Test2Model.Elasticsearch, 'fields', ['id', 'dummies'])
-    def test_reverse_relationship(self):
+    def test_reverse_fk(self):
         serializer = Test2Model.es.get_serializer()
         obj = serializer.format(self.instance)
         expected = {'id': 1, 'dummies': [{'id':1, 'value': 'test'},]}
+        self.assertEqual(obj, expected)
+
+    @withattrs(Test2Model.Elasticsearch, 'fields', ['id', 'dummiesm2m'])
+    def test_reverse_m2m(self):
+        serializer = Test2Model.es.get_serializer()
+        obj = serializer.format(self.instance)
+        expected = {'id': 1, 'dummiesm2m': [{'id':1, 'value': 'test'},]}
         self.assertEqual(obj, expected)
