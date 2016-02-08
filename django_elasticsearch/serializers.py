@@ -99,10 +99,18 @@ class EsModelToJsonMixin(object):
         self.cur_depth = cur_depth
         self.max_depth = max_depth
 
-    def serialize_type_manytoonerel(self, instance, field_name):
-        # Default reverse relations serializer
+    def serialize_type_rel(self, instance, field_name):
+        if self.cur_depth >= self.max_depth:
+            return
+
         return [self.nested_serialize(r)
                 for r in getattr(instance, field_name).all()]
+
+    def serialize_type_manytoonerel(self, instance, field_name):
+        return self.serialize_type_rel(instance, field_name)
+
+    def serialize_type_manytomanyrel(self, instance, field_name):
+        return self.serialize_type_rel(instance, field_name)
 
     def serialize_type_foreignkey(self, instance, field_name):
         if self.cur_depth >= self.max_depth:
@@ -114,11 +122,11 @@ class EsModelToJsonMixin(object):
         return self.serialize_type_foreignkey(instance, field_name)
 
     def serialize_type_manytomanyfield(self, instance, field_name):
-        if self.cur_depth >= self.max_depth:
-            return
+        return self.serialize_type_rel(instance, field_name)
 
-        return [self.nested_serialize(r)
-                for r in getattr(instance, field_name).all()]
+    # django <1.8 hack
+    def serialize_type_relatedobject(self, instance, field_name):
+        return self.serialize_type_rel(instance, field_name)
 
     def serialize_field(self, instance, field_name):
         method_name = 'serialize_{0}'.format(field_name)
@@ -126,15 +134,10 @@ class EsModelToJsonMixin(object):
             return getattr(self, method_name)(instance, field_name)
 
         try:
-            field = self.model._meta.get_field(field_name)
+            field, model, direct, m2m = self.model._meta.get_field_by_name(field_name)
         except FieldDoesNotExist:
             # Abstract field
             field = None
-
-            # reverse relations django <1.8
-            for rel in self.model._meta.get_all_related_objects():
-                if rel.get_accessor_name() == field_name:
-                    field = rel.field.rel
 
         if field:
             field_type_method_name = 'serialize_type_{0}'.format(
@@ -146,7 +149,7 @@ class EsModelToJsonMixin(object):
             return getattr(instance, field_name)
         except AttributeError:
             raise AttributeError("The serializer doesn't know how to serialize {0}, "
-                                 "please provide it a {1} method."
+                                 "please provide it a '{1}' method."
                                  "".format(field_name, method_name))
 
     def nested_serialize(self, rel):
