@@ -261,11 +261,16 @@ class ElasticsearchManager():
                 if mapping['type'] == 'string':
                     analyzer = settings.ELASTICSEARCH_SETTINGS['analysis']['default']
                     mapping['analyzer'] = analyzer
-            except (ValueError, AttributeError, KeyError, TypeError):
+            except (AttributeError, KeyError):
+                # AttributeError - settings.ELASTICSEARCH_SETTINGS is not set
+                # KeyError - either 'analysis' or 'default' is not set
                 pass
+
             try:
                 mapping.update(self.model.Elasticsearch.mappings[field_name])
-            except (AttributeError, KeyError, TypeError):
+            except (AttributeError, KeyError):
+                # AttributeError - Elasticsearch.mappings is not set
+                # KeyError - Elastisearch.mappings[field_name] is not set
                 pass
             mappings[field_name] = mapping
 
