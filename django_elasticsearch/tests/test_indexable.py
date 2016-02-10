@@ -129,19 +129,29 @@ class EsIndexableTestCase(TestCase):
         data = Test2Model.es.complete('char', 'woo')
         self.assertTrue('woot' in data)
 
-    @withattrs(Test2Model.Elasticsearch, 'fields', ['email', 'datef'])
-    def test_get_mapping(self):
+    def _test_mapping(self, expected):
         Test2Model.es._mapping = None
         Test2Model.es.flush()
         Test2Model.es.do_update()
 
-        expected = {u'datef': {u'format': u'dateOptionalTime', u'type': u'date'},
-                    u'email': {u'index': u'not_analyzed', u'type': u'string'}}
-
         # Reset the eventual cache on the Model mapping
         mapping = Test2Model.es.get_mapping()
         Test2Model.es._mapping = None
-        self.assertEqual(expected, mapping)
+        self.assertEqual(expected, mapping)        
+
+    @withattrs(Test2Model.Elasticsearch, 'fields', ['email', 'datef'])
+    def test_get_mapping(self):
+        expected = {u'datef': {u'format': u'dateOptionalTime', u'type': u'date'},
+                    u'email': {u'index': u'not_analyzed', u'type': u'string'}}
+        self._test_mapping(expected)
+
+    @withattrs(Test2Model.Elasticsearch, 'fields', ['id', 'dummies', 'dummiesm2m'])
+    def test_reverse_relationship_mapping(self):
+        expected = {u'id': {},
+                    u'dummies': {},
+                    u'dummiesm2M': {}}
+
+        self._test_mapping(expected)
 
     def test_get_settings(self):
         # Note i don't really know what's in there so i just check
