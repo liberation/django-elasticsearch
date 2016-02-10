@@ -121,7 +121,8 @@ class Test2Model(EsIndexable):
         # Note: we need to specify this field since the value returned
         # by the serializer does not correspond to it's default mapping
         # see: Test2Serializer.serialize_type_datetimefield
-        mappings = {'datetf': {'type': 'object'}}
+        mappings = {'email': {"index": "not_analyzed"},
+                    'datetf': {'type': 'object'}}
 
     @property
     def abstract_prop(self):
