@@ -153,6 +153,9 @@ class EsModelToJsonMixin(object):
                                  "".format(field_name, method_name))
 
     def nested_serialize(self, rel):
+        if rel is None:
+            return
+
         # check for Elasticsearch.serializer on the related model
         if hasattr(rel, 'Elasticsearch'):
             serializer = rel.es.get_serializer(max_depth=self.max_depth,
@@ -162,6 +165,7 @@ class EsModelToJsonMixin(object):
 
         # Fallback on a dict with id + __unicode__ value of the related model instance.
         return dict(id=rel.pk, value=unicode(rel))
+
 
     def format(self, instance):
         # from a model instance to a dict

@@ -145,12 +145,10 @@ class EsIndexableTestCase(TestCase):
                     u'email': {u'index': u'not_analyzed', u'type': u'string'}}
         self._test_mapping(expected)
 
-    @withattrs(Test2Model.Elasticsearch, 'fields', ['id', 'dummies', 'dummiesm2m'])
+    @withattrs(Test2Model.Elasticsearch, 'fields', ['dummies', 'dummiesm2m'])
     def test_reverse_relationship_mapping(self):
-        expected = {u'id': {},
-                    u'dummies': {},
-                    u'dummiesm2M': {}}
-
+        expected = {u'dummies': {u'type': u'object'},
+                    u'dummiesm2m': {u'type': u'object'}}
         self._test_mapping(expected)
 
     def test_get_settings(self):

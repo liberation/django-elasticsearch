@@ -28,7 +28,14 @@ ELASTICSEARCH_FIELD_MAP = {
 
     u'ForeignKey': 'object',
     u'OneToOneField': 'object',
-    u'ManyToManyField': 'object'
+    u'ManyToManyField': 'object',
+
+    # reverse relationship
+    u'ManyToOneRel': 'object',
+    u'ManyToManyRel': 'object',
+
+    # dj <1.8
+    u'RelatedObject': 'object'
 }
 
 
@@ -248,13 +255,13 @@ class ElasticsearchManager():
 
         for field_name in self.get_fields():
             try:
-                field = self.model._meta.get_field(field_name)
+                field, a, b, c = self.model._meta.get_field_by_name(field_name)
             except FieldDoesNotExist:
                 # abstract field
                 mapping = {}
             else:
                 mapping = {'type': ELASTICSEARCH_FIELD_MAP.get(
-                    field.get_internal_type(), 'string')}
+                    field.__class__.__name__, 'string')}
             try:
                 # if an analyzer is set as default, use it.
                 # TODO: could be also tokenizer, filter, char_filter
