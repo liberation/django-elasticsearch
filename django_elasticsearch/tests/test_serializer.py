@@ -132,3 +132,16 @@ class EsJsonSerializerTestCase(TestCase):
         expected = {'id': 1, 'dummiesm2m': [{'id':1, 'foo': 'test'},]}
         self.assertEqual(obj, expected)
 
+    def test_deserialize_reverse_relationships(self):
+        # make sure no sql query is done
+        instance = Test2Model.es.deserialize({'dummies': [{'id':1, 'foo': 'test'},],
+                                              'dummiesm2m': [{'id':1, 'foo': 'test'},]})
+        self.assertTrue(isinstance(instance, Test2Model))
+
+        self.assertEqual(len(instance.dummies), 1)
+        self.assertTrue(isinstance(instance.dummies[0], Dummy))
+        self.assertEqual(instance.dummies[0].foo, 'test')
+
+        self.assertEqual(len(instance.dummiesm2m), 1)
+        self.assertTrue(isinstance(instance.dummiesm2m, Dummy))
+        self.assertEqual(instance.dummiesm2m[0].foo, 'test')
