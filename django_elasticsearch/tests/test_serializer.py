@@ -48,6 +48,7 @@ class EsJsonSerializerTestCase(TestCase):
 
     def test_deserialize(self):
         instance = Test2Model.es.deserialize({'char': 'test'})
+        self.assertTrue(isinstance(instance, Test2Model))
         self.assertEqual(instance.char, 'test')
         self.assertRaises(ValueError, instance.save)
 
@@ -60,14 +61,14 @@ class EsJsonSerializerTestCase(TestCase):
     def test_nested_fk(self):
         serializer = Test2Model.es.get_serializer()
         obj = serializer.format(self.instance)
-        expected = {'id': 1, 'fk': {'id':1, 'value': 'test'}}
+        expected = {'id': 1, 'fk': {'id':1, 'foo': 'test'}}
         self.assertEqual(obj, expected)
 
     @withattrs(Test2Model.Elasticsearch, 'fields', ['id', 'oto'])
     def test_nested_oto(self):
         serializer = Test2Model.es.get_serializer()
         obj = serializer.format(self.instance)
-        expected = {'id': 1, 'oto': {'id':1, 'value': 'test'}}
+        expected = {'id': 1, 'oto': {'id':1, 'foo': 'test'}}
         self.assertEqual(obj, expected)
 
     @withattrs(Test2Model.Elasticsearch, 'fields', ['id', 'fkself'])
@@ -81,7 +82,7 @@ class EsJsonSerializerTestCase(TestCase):
     def test_nested_m2m(self):
         serializer = Test2Model.es.get_serializer()
         obj = serializer.format(self.instance)
-        expected = {'id': 1, 'mtm': [{'id':1, 'value': 'test'},]}
+        expected = {'id': 1, 'mtm': [{'id':1, 'foo': 'test'},]}
         self.assertEqual(obj, expected)
 
     @withattrs(Test2Model.Elasticsearch, 'fields', ['abstract_prop', 'abstract_method'])
@@ -121,12 +122,13 @@ class EsJsonSerializerTestCase(TestCase):
     def test_reverse_fk(self):
         serializer = Test2Model.es.get_serializer()
         obj = serializer.format(self.instance)
-        expected = {'id': 1, 'dummies': [{'id':1, 'value': 'test'},]}
+        expected = {'id': 1, 'dummies': [{'id':1, 'foo': 'test'},]}
         self.assertEqual(obj, expected)
 
     @withattrs(Test2Model.Elasticsearch, 'fields', ['id', 'dummiesm2m'])
     def test_reverse_m2m(self):
         serializer = Test2Model.es.get_serializer()
         obj = serializer.format(self.instance)
-        expected = {'id': 1, 'dummiesm2m': [{'id':1, 'value': 'test'},]}
+        expected = {'id': 1, 'dummiesm2m': [{'id':1, 'foo': 'test'},]}
         self.assertEqual(obj, expected)
+

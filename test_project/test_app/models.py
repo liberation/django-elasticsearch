@@ -36,7 +36,7 @@ class TestModel(User, EsIndexable):
         ordering = ('id',)
 
 
-class Dummy(models.Model):
+class Dummy(EsIndexable):
     foo = models.CharField(max_length=256, null=True)
     reversefk = models.ForeignKey('Test2Model',
                                   related_name='dummies',
@@ -46,8 +46,10 @@ class Dummy(models.Model):
                                   related_name='dummiesm2m',
                                   null=True)
 
-    def __unicode__(self):
-        return self.foo
+    class Elasticsearch(EsIndexable.Elasticsearch):
+        abstract = True
+        fields = ['id', 'foo']
+
 
 class Test2Serializer(EsJsonSerializer):
     def serialize_type_datetimefield(self, instance, field_name):
