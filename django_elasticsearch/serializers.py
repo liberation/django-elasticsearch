@@ -1,11 +1,15 @@
 import json
 import datetime
 
+from django.db.models import Model
 from django.db.models import FieldDoesNotExist
 from django.db.models.fields.related import ManyToManyField
 
 
 class EsSerializer(object):
+    def __init__(self, *args, **kwargs):
+        pass
+
     def serialize(self, instance):
         raise NotImplementedError()
 
@@ -24,6 +28,17 @@ class EsDbMixin(object):
         ids = [e[pk_field.name] for e in source]
         return self.model.objects.filter(**{pk_field.name + '__in': ids})
 
+def post_save_attr(f):
+    # Since related fields can't be set on instanciation
+    # this decorator saves them for later
+    def wrapper(*args, **kwargs):
+        val = f(*args, **kwargs)
+        serializer = args[0]
+        field_name = args[2]
+        serializer._post_save_attrs[field_name] = val
+        return None
+    return wrapper
+
 
 class EsJsonToModelMixin(object):
     """
@@ -31,65 +46,121 @@ class EsJsonToModelMixin(object):
     from the json elasticsearch source
     (and disables db operations on the model).
     """
+    def __init__(self, *args, **kwargs):
+        self._post_save_attrs = {}
+        super(EsJsonToModelMixin, self).__init__(*args, **kwargs)
 
     def instanciate(self, attrs):
         instance = self.model(**attrs)
         instance._is_es_deserialized = True
+
+        # set m2m, fks and such
+        # for k, v in self._post_save_attrs.iteritems():
+        #     if v:
+        #         try:
+        #             setattr(instance, k, v)
+        #         except TypeError, ValueError:
+        #             # bypass ManyRelatedManager complaining
+        #             # TODO
+        #             # super(Model, instance).__setattr__(k, v)
+        #             pass
+
         return instance
 
-    def nested_deserialize(self, field, source):
+    def nested_deserialize(self, source, rel):
         # check for Elasticsearch.serializer on the related model
-        if source:
-            if hasattr(field.rel.to, 'Elasticsearch'):
-                serializer = field.rel.to.es.get_serializer()
+        model = rel.related_model
+        if source and rel:
+            if hasattr(model, 'Elasticsearch'):
+                serializer = model.es.get_serializer()
                 obj = serializer.deserialize(source)
                 return obj
             elif 'id' in source and 'value' in source:
-                # id/value fallback
-                return field.rel.to.objects.get(pk=source.get('id'))
+                # fallback
+                return source
+
+    def deserialize_type_datetimefield(self, source, field_name):
+        val = source.get(field_name)
+        if val:
+            return datetime.datetime.strptime(val, '%Y-%m-%dT%H:%M:%S.%f')
+
+    def deserialize_type_datefield(self, source, field_name):
+        val = source.get(field_name)
+        if val:
+            return datetime.datetime.strptime(val, '%Y-%m-%d')
+
+    def deserialize_type_timefield(self, source, field_name):
+        val = source.get(field_name)
+        if val:
+            return datetime.datetime.strptime(val, '%H:%M:%S')
+
+    def deserialize_type_rel(self, source, field_name):
+        rel, model, direct, m2m = self.model._meta.get_field_by_name(field_name)
+        val = source.get(field_name)
+        if val:
+            return [self.nested_deserialize(r, rel) for r in val]
+
+    @post_save_attr
+    def deserialize_type_manytoonerel(self, source, field_name):
+        # reverse fk
+        return self.deserialize_type_rel(source, field_name)
+
+    @post_save_attr
+    def deserialize_type_manytomanyrel(self, source, field_name):
+        # reverse m2m
+        return self.deserialize_type_rel(source, field_name)
+
+    @post_save_attr
+    def deserialize_type_foreignkey(self, source, field_name):
+        rel, model, direct, m2m = self.model._meta.get_field_by_name(field_name)
+        val = source.get(field_name)
+        if val:
+            return self.nested_deserialize(val, rel)
+
+    @post_save_attr
+    def deserialize_type_onetoonefield(self, source, field_name):
+        return self.deserialize_type_foreignkey(source, field_name)
+
+    @post_save_attr
+    def deserialize_type_manytomanyfield(self, source, field_name):
+        return self.deserialize_type_rel(source, field_name)
+
+    # django <1.8 hack
+    @post_save_attr
+    def deserialize_type_relatedobject(self, source, field_name):
+        return self.deserialize_type_rel(source, field_name)
 
     def deserialize_field(self, source, field_name):
         method_name = 'deserialize_{0}'.format(field_name)
         if hasattr(self, method_name):
             return getattr(self, method_name)(source, field_name)
 
-        field = self.model._meta.get_field(field_name)
-        field_type_method_name = 'deserialize_type_{0}'.format(
-            field.__class__.__name__.lower())
-        if hasattr(self, field_type_method_name):
-            return getattr(self, field_type_method_name)(source, field_name)
+        try:
+            field, model, direct, m2m = self.model._meta.get_field_by_name(field_name)
+        except FieldDoesNotExist:
+            # Abstract field
+            field = None
 
-        val = source.get(field_name)
+        if field:
+            field_type_method_name = 'deserialize_type_{0}'.format(
+                field.__class__.__name__.lower())
+            if hasattr(self, field_type_method_name):
+                return getattr(self, field_type_method_name)(source, field_name)
 
-        # datetime
-        typ = field.get_internal_type()
-        if val and typ in ('DateField', 'DateTimeField'):
-            return datetime.datetime.strptime(val, '%Y-%m-%dT%H:%M:%S.%f')
-
-        if field.rel:
-            # M2M
-            if isinstance(field, ManyToManyField):
-                raise AttributeError
-
-            # FK, OtO
-            return self.nested_deserialize(field, source.get(field_name))
-
-        return source.get(field_name)
+            return source.get(field_name)
 
     def deserialize(self, source):
         """
         Returns a model instance
         """
         attrs = {}
-        for k, v in source.iteritems():
-            try:
-                attrs[k] = self.deserialize_field(source, k)
-            except (AttributeError, FieldDoesNotExist):
-                # m2m, abstract
-                pass
+
+        for field_name in source.iterkeys():
+            val = self.deserialize_field(source, field_name)
+            if val:
+                attrs[field_name] = val
 
         return self.instanciate(attrs)
-        # TODO: we can assign m2ms now
 
 
 class EsModelToJsonMixin(object):
@@ -98,6 +169,7 @@ class EsModelToJsonMixin(object):
         # used in case of related field on 'self' to avoid infinite loop
         self.cur_depth = cur_depth
         self.max_depth = max_depth
+        super(EsModelToJsonMixin, self).__init__(model, max_depth=max_depth, cur_depth=cur_depth)
 
     def serialize_type_rel(self, instance, field_name):
         if self.cur_depth >= self.max_depth:

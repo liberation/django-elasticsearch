@@ -61,17 +61,17 @@ class Test2Serializer(EsJsonSerializer):
             'time': d and d.time().isoformat()[:5]
         }
 
-    def deserialize_type_datetimefield(self, instance, field_name):
-        return datetime.strptime(instance.get(field_name)['iso'],
+    def deserialize_type_datetimefield(self, source, field_name):
+        return datetime.strptime(source.get(field_name)['iso'],
                                  '%Y-%m-%dT%H:%M:%S.%f')
 
     def serialize_abstract_method(self, instance, field_name):
         return 'woot'
 
-    def serialize_bigint(self, instance, field_name):
+    def serialize_intf(self, instance, field_name):
         return 42
 
-    def deserialize_bigint(self, source, field_name):
+    def deserialize_intf(self, source, field_name):
         return 45
 
 
