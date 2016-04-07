@@ -28,14 +28,30 @@ ELASTICSEARCH_FIELD_MAP = {
 
     u'ForeignKey': 'object',
     u'OneToOneField': 'object',
-    u'ManyToManyField': 'object'
+    u'ManyToManyField': 'object',
+
+    # reverse relationship
+    u'ManyToOneRel': 'object',
+    u'ManyToManyRel': 'object',
+
+    # dj <1.8
+    u'RelatedObject': 'object'
 }
 
 
 def needs_instance(f):
     def wrapper(*args, **kwargs):
         if args[0].instance is None:
-            raise AttributeError("This method requires an instance of the model.")
+            raise AttributeError(u"This method requires an instance of the model.")
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def no_abstract(f):
+    def wrapper(*args, **kwargs):
+        if args[0].model.Elasticsearch.abstract is True:
+            raise ValueError(u"This model {0} is abstract - not indexed.".format(
+                args[0].instance.__class__))
         return f(*args, **kwargs)
     return wrapper
 
@@ -60,6 +76,7 @@ class ElasticsearchManager():
         self.serializer = None
         self._mapping = None
 
+    @no_abstract
     def get_index(self):
         return self.model.Elasticsearch.index
 
@@ -67,6 +84,7 @@ class ElasticsearchManager():
     def index(self):
         return self.get_index()
 
+    @no_abstract
     def get_doc_type(self):
         return (self.model.Elasticsearch.doc_type
                 or 'model-{0}'.format(self.model.__name__))
@@ -112,6 +130,7 @@ class ElasticsearchManager():
         else:
             return serializer.deserialize(source)
 
+    @no_abstract
     @needs_instance
     def do_index(self):
         body = self.serialize()
@@ -120,6 +139,7 @@ class ElasticsearchManager():
                         id=self.instance.id,
                         body=body)
 
+    @no_abstract
     @needs_instance
     def delete(self):
         es_client.delete(index=self.index,
@@ -127,6 +147,7 @@ class ElasticsearchManager():
                          id=self.instance.id,
                          ignore=404)
 
+    @no_abstract
     def get(self, **kwargs):
         if 'pk' in kwargs:
             pk = kwargs.pop('pk')
@@ -140,6 +161,7 @@ class ElasticsearchManager():
 
         return self.queryset.get(id=pk)
 
+    @no_abstract
     @needs_instance
     def mlt(self, **kwargs):
         """
@@ -158,6 +180,7 @@ class ElasticsearchManager():
         """
         return self.queryset.mlt(id=self.instance.id, **kwargs)
 
+    @no_abstract
     def count(self):
         return self.queryset.count()
 
@@ -165,6 +188,7 @@ class ElasticsearchManager():
     def queryset(self):
         return EsQueryset(self.model)
 
+    @no_abstract
     def search(self, query,
                facets=None, facets_limit=None, global_facets=True,
                suggest_fields=None, suggest_limit=None,
@@ -203,18 +227,22 @@ class ElasticsearchManager():
         return q.query(query)
 
     # Convenience methods
+    @no_abstract
     def all(self):
         """
         proxy to an empty search.
         """
         return self.search("")
 
+    @no_abstract
     def filter(self, **kwargs):
         return self.queryset.filter(**kwargs)
 
+    @no_abstract
     def exclude(self, **kwargs):
         return self.queryset.exclude(**kwargs)
 
+    @no_abstract
     def complete(self, field_name, query):
         """
         Returns a list of close values for auto-completion
@@ -227,6 +255,7 @@ class ElasticsearchManager():
         complete_name = "{0}_complete".format(field_name)
         return self.queryset.complete(complete_name, query)
 
+    @no_abstract
     def do_update(self):
         """
         Hit this if you are in a hurry,
@@ -248,24 +277,29 @@ class ElasticsearchManager():
 
         for field_name in self.get_fields():
             try:
-                field = self.model._meta.get_field(field_name)
+                field, a, b, c = self.model._meta.get_field_by_name(field_name)
             except FieldDoesNotExist:
                 # abstract field
                 mapping = {}
             else:
                 mapping = {'type': ELASTICSEARCH_FIELD_MAP.get(
-                    field.get_internal_type(), 'string')}
+                    field.__class__.__name__, 'string')}
             try:
                 # if an analyzer is set as default, use it.
                 # TODO: could be also tokenizer, filter, char_filter
                 if mapping['type'] == 'string':
                     analyzer = settings.ELASTICSEARCH_SETTINGS['analysis']['default']
                     mapping['analyzer'] = analyzer
-            except (ValueError, AttributeError, KeyError, TypeError):
+            except (AttributeError, KeyError):
+                # AttributeError - settings.ELASTICSEARCH_SETTINGS is not set
+                # KeyError - either 'analysis' or 'default' is not set
                 pass
+
             try:
                 mapping.update(self.model.Elasticsearch.mappings[field_name])
-            except (AttributeError, KeyError, TypeError):
+            except (AttributeError, KeyError):
+                # AttributeError - Elasticsearch.mappings is not set
+                # KeyError - Elastisearch.mappings[field_name] is not set
                 pass
             mappings[field_name] = mapping
 
@@ -281,6 +315,7 @@ class ElasticsearchManager():
             }
         }
 
+    @no_abstract
     def get_mapping(self):
         if self._mapping is None:
             # TODO: could be done once for every index/doc_type ?
@@ -296,6 +331,7 @@ class ElasticsearchManager():
         """
         return es_client.indices.get_settings(index=self.index)
 
+    @no_abstract
     @needs_instance
     def diff(self, source=None):
         """
@@ -321,6 +357,7 @@ class ElasticsearchManager():
 
         return diff
 
+    @no_abstract
     def create_index(self, ignore=True):
         body = {}
         if hasattr(settings, 'ELASTICSEARCH_SETTINGS'):
@@ -329,15 +366,18 @@ class ElasticsearchManager():
         es_client.indices.create(self.index,
                                  body=body,
                                  ignore=ignore and 400)
+
         es_client.indices.put_mapping(index=self.index,
                                       doc_type=self.doc_type,
                                       body=self.make_mapping())
 
+    @no_abstract
     def reindex_all(self, queryset=None):
         q = queryset or self.model.objects.all()
         for instance in q:
             instance.es.do_index()
 
+    @no_abstract
     def flush(self):
         es_client.indices.delete_mapping(index=self.index,
                                          doc_type=self.doc_type,

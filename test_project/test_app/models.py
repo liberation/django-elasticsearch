@@ -36,8 +36,19 @@ class TestModel(User, EsIndexable):
         ordering = ('id',)
 
 
-class Dummy(models.Model):
+class Dummy(EsIndexable):
     foo = models.CharField(max_length=256, null=True)
+    reversefk = models.ForeignKey('Test2Model',
+                                  related_name='dummies',
+                                  null=True)
+
+    reversem2m = models.ManyToManyField('Test2Model',
+                                  related_name='dummiesm2m',
+                                  null=True)
+
+    class Elasticsearch(EsIndexable.Elasticsearch):
+        abstract = True
+        fields = ['id', 'foo']
 
 
 class Test2Serializer(EsJsonSerializer):
@@ -50,17 +61,17 @@ class Test2Serializer(EsJsonSerializer):
             'time': d and d.time().isoformat()[:5]
         }
 
-    def deserialize_type_datetimefield(self, instance, field_name):
-        return datetime.strptime(instance.get(field_name)['iso'],
+    def deserialize_type_datetimefield(self, source, field_name):
+        return datetime.strptime(source.get(field_name)['iso'],
                                  '%Y-%m-%dT%H:%M:%S.%f')
 
     def serialize_abstract_method(self, instance, field_name):
         return 'woot'
 
-    def serialize_bigint(self, instance, field_name):
+    def serialize_intf(self, instance, field_name):
         return 42
 
-    def deserialize_bigint(self, source, field_name):
+    def deserialize_intf(self, source, field_name):
         return 45
 
 
@@ -112,7 +123,8 @@ class Test2Model(EsIndexable):
         # Note: we need to specify this field since the value returned
         # by the serializer does not correspond to it's default mapping
         # see: Test2Serializer.serialize_type_datetimefield
-        mappings = {'datetf': {'type': 'object'}}
+        mappings = {'email': {"index": "not_analyzed"},
+                    'datetf': {'type': 'object'}}
 
     @property
     def abstract_prop(self):

@@ -16,6 +16,7 @@ class EsIndexable(Model):
         abstract = True
 
     class Elasticsearch:
+        abstract = False
         index = getattr(settings, 'ELASTICSEARCH_DEFAULT_INDEX', 'django')
         doc_type = None  # defaults to 'model-{model.name}'
         mapping = None
@@ -57,20 +58,20 @@ class_prepared.connect(add_es_manager)
 
 def es_save_callback(sender, instance, **kwargs):
     # TODO: batch ?! @task ?!
-    if not issubclass(sender, EsIndexable):
+    if not issubclass(sender, EsIndexable) or sender.Elasticsearch.abstract:
         return
     instance.es.do_index()
 
 
 def es_delete_callback(sender, instance, **kwargs):
-    if not issubclass(sender, EsIndexable):
+    if not issubclass(sender, EsIndexable) or sender.Elasticsearch.abstract:
         return
     instance.es.delete()
 
 
 def es_syncdb_callback(sender, app, created_models, **kwargs):
     for model in created_models:
-        if issubclass(model, EsIndexable):
+        if issubclass(model, EsIndexable) and not sender.Elasticsearch.abstract:
             model.es.create_index()
 
 if getattr(settings, 'ELASTICSEARCH_AUTO_INDEX', False):
