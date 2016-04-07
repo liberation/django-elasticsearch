@@ -72,7 +72,7 @@ def es_delete_callback(sender, instance, **kwargs):
     instance.es.delete()
 
 
-def es_syncdb_callback(sender, app, created_models, **kwargs):
+def es_syncdb_callback(sender, app=None, created_models=[], **kwargs):
     for model in created_models:
         if issubclass(model, EsIndexable):
             model.es.create_index()
