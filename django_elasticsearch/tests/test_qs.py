@@ -243,6 +243,7 @@ class EsQuerysetTestCase(TestCase):
         time.sleep(2)
 
         contents = TestModel.es.filter(date_joined_exp__iso__gte=self.t2.date_joined.isoformat()).deserialize()
+
         self.assertTrue(self.t1 not in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 in contents)
@@ -355,3 +356,8 @@ class EsQuerysetTestCase(TestCase):
 
         # make sure it didn't break the query otherwise
         self.assertTrue(q.deserialize())
+
+    def test_range_plus_must(self):
+        q = TestModel.es.filter(date_joined__gt='now-10d').filter(first_name="John")
+        self.assertEqual(q.count(), 1)
+
