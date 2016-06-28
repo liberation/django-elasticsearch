@@ -11,6 +11,12 @@ from django.db.models import FieldDoesNotExist
 from django_elasticsearch.query import EsQueryset
 from django_elasticsearch.client import es_client
 
+
+try:
+  basestring #py2
+except NameError:
+  basestring = str #py3
+
 # Note: we use long/double because different db backends
 # could store different sizes of numerics ?
 # Note: everything else is mapped to a string
