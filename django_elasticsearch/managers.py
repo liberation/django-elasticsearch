@@ -2,7 +2,10 @@
 import json
 
 from django.conf import settings
-from django.utils import importlib
+try:
+    from django.utils import importlib
+except:
+    import importlib
 from django.db.models import FieldDoesNotExist
 
 from django_elasticsearch.query import EsQueryset
