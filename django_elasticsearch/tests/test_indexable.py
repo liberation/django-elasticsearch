@@ -180,3 +180,51 @@ class EsIndexableTestCase(TestCase):
         # force diff to reload from db
         deserialized = TestModel.es.all().deserialize()[0]
         self.assertEqual(deserialized.es.diff(), {})
+
+class EsAutoIndexTestCase(TestCase):
+    """
+    integration test with django's db callbacks
+    """
+
+    def setUp(self):
+        from django.db.models.signals import post_save, post_delete
+        try:
+            from django.db.models.signals import post_migrate
+        except ImportError:  # django <= 1.6
+            from django.db.models.signals import post_syncdb as post_migrate
+
+        from django_elasticsearch.models import es_save_callback
+        from django_elasticsearch.models import es_delete_callback
+        from django_elasticsearch.models import es_syncdb_callback
+        try:
+            from django.apps import apps
+            app = apps.get_app_config('django_elasticsearch')
+        except ImportError: # django 1.4
+            from django.db.models import get_app
+            app = get_app('django_elasticsearch')
+
+        post_save.connect(es_save_callback)
+        post_delete.connect(es_delete_callback)
+        post_migrate.connect(es_syncdb_callback)
+
+        post_migrate.send(sender=None,
+                          app_config=app,
+                          app=app,  # django 1.4
+                          created_models=[TestModel,],
+                          verbosity=2)
+
+        self.instance = TestModel.objects.create(username=u"1",
+                                                 first_name=u"woot",
+                                                 last_name=u"foo")
+        self.instance.es.do_index()
+
+    def test_auto_save(self):
+        self.instance.first_name = u'Test'
+        self.instance.save()
+        TestModel.es.do_update()
+        self.assertEqual(TestModel.es.filter(first_name=u'Test').count(), 1)
+
+    def test_auto_delete(self):
+        self.instance.es.delete()
+        TestModel.es.do_update()
+        self.assertEqual(TestModel.es.filter(first_name=u'Test').count(), 0)
