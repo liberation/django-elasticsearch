@@ -9,6 +9,8 @@ from django_elasticsearch.tests.utils import withattrs
 
 from test_app.models import TestModel
 
+from django import get_version
+
 
 class EsIndexableTestCase(TestCase):
     def setUp(self):
@@ -206,8 +208,12 @@ class EsAutoIndexTestCase(TestCase):
         post_save.connect(es_save_callback)
         post_delete.connect(es_delete_callback)
         post_migrate.connect(es_syncdb_callback)
-
-        post_migrate.send(sender=None,
+        
+        if int(get_version()[2]) >= 6:
+            sender = app
+        else:
+            sender = None
+        post_migrate.send(sender=sender,
                           app_config=app,
                           app=app,  # django 1.4
                           created_models=[TestModel,],
