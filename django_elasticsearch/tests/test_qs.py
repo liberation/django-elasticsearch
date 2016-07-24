@@ -122,7 +122,8 @@ class EsQuerysetTestCase(TestCase):
     def test_count(self):
         self.assertEqual(TestModel.es.count(), 4)
         self.assertEqual(TestModel.es.search("John").count(), 1)
-        self.assertEqual(TestModel.es.search("").filter(last_name=u"Smith").count(), 3)
+        self.assertEqual(TestModel.es.search("").filter(username=u"Woot").count(), 0)
+        self.assertEqual(TestModel.es.search("").filter(username=u"woot").count(), 1)
 
     def test_count_after_reeval(self):
         # regression test
@@ -163,14 +164,14 @@ class EsQuerysetTestCase(TestCase):
             TestModel.es.queryset.get()
 
     def test_filtering(self):
-        contents = TestModel.es.filter(last_name=u"Smith").deserialize()
+        contents = TestModel.es.filter(last_name__contains=u"Smith").deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 not in contents)
 
     def test_multiple_filter(self):
-        contents = TestModel.es.filter(last_name=u"Smith", first_name=u"jack").deserialize()
+        contents = TestModel.es.filter(id__gt=self.t1.id, id__lt=self.t3.id).deserialize()
         self.assertTrue(self.t1 not in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 not in contents)
@@ -293,29 +294,32 @@ class EsQuerysetTestCase(TestCase):
         self.assertTrue(self.t4 in contents)
 
     def test_chain_filter_exclude(self):
-        contents = TestModel.es.filter(last_name=u"Smith").exclude(username=u"woot").deserialize()
+        contents = TestModel.es.filter(last_name__contains=u"Smith").exclude(username=u"woot").deserialize()
         self.assertTrue(self.t1 in contents)  # note: it works because username is "not analyzed"
         self.assertTrue(self.t2 not in contents)  # excluded
         self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 not in contents)  # not a Smith
 
-    @withattrs(TestModel.Elasticsearch, 'fields', ['id', 'username'])
-    @withattrs(TestModel.Elasticsearch, 'mappings', {})
+    def test_chain_search_filter(self):
+        contents = TestModel.es.search("Smith").filter(id__gt=self.t2.id).deserialize()
+        self.assertTrue(self.t1 not in contents)
+        self.assertTrue(self.t2 not in contents)
+        self.assertTrue(self.t3 in contents)
+        self.assertTrue(self.t4 not in contents)
+
     def test_contains(self):
-        TestModel.es._fields = None
-        TestModel.es._mapping = None
-        TestModel.es.flush()  # update the mapping, username is now analyzed
-        time.sleep(2)  # TODO: flushing is not immediate, find a better way
-        contents = TestModel.es.filter(username__contains='woot').deserialize()
+        contents = TestModel.es.filter(last_name__contains='Smith').deserialize()
         self.assertTrue(self.t1 in contents)
         self.assertTrue(self.t2 in contents)
-        self.assertTrue(self.t3 not in contents)
+        self.assertTrue(self.t3 in contents)
         self.assertTrue(self.t4 not in contents)
 
     def test_should_lookup(self):
-        contents = TestModel.es.all().filter(last_name__should=u"Smith").deserialize()
+        contents = TestModel.es.all().filter(first_name__should=u"john", 
+                                             last_name__should=u"bar").deserialize()
         self.assertTrue(self.t1 in contents)
-        self.assertTrue(self.t4 not in contents)
+        self.assertTrue(self.t4 in contents)
+        self.assertEqual(len(contents), 2)
 
     def test_nonzero(self):
         self.assertTrue(TestModel.es.all())
@@ -372,5 +376,5 @@ class EsQuerysetTestCase(TestCase):
             TestModel.es.all().prefetch_related()
 
     def test_range_plus_must(self):
-        q = TestModel.es.filter(date_joined__gt='now-10d').filter(first_name="John")
+        q = TestModel.es.filter(date_joined__gt='now-10d').filter(first_name__contains="John")
         self.assertEqual(q.count(), 1)

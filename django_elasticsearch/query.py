@@ -121,7 +121,7 @@ class EsQueryset(QuerySet):
 
     def make_search_body(self):
         body = {}
-        search = {}
+        query = {}
 
         if self.fuzziness is None:  # beware, could be 0
             fuzziness = getattr(settings, 'ELASTICSEARCH_FUZZINESS', 0.5)
@@ -129,7 +129,7 @@ class EsQueryset(QuerySet):
             fuzziness = self.fuzziness
 
         if self._query:
-            search['query'] = {
+            query = {
                 'match': {
                     '_all': {
                         'query': self._query,
@@ -140,15 +140,10 @@ class EsQueryset(QuerySet):
 
         if self.filters:
             # TODO: should we add _cache = true ?!
-            search['filter'] = {}
+            filters = {}
             mapping = self.model.es.get_mapping()
 
             for field, value in self.filters.items():
-                try:
-                    value = value.lower()
-                except AttributeError:
-                    pass
-
                 field, operator = self.sanitize_lookup(field)
 
                 try:
@@ -161,38 +156,46 @@ class EsQueryset(QuerySet):
                 if is_nested and isinstance(value, Model):
                     value = value.id
 
-                if operator == 'exact':
-                    filtr = {'bool': {'must': [{'term': {field_name: value}}]}}
-
-                elif operator == 'not':
-                    filtr = {'bool': {'must_not': [{'term': {field_name: value}}]}}
-
-                elif operator == 'should':
-                    filtr = {'bool': {operator: [{'term': {field_name: value}}]}}
-
-                elif operator == 'contains':
-                    filtr = {'query': {'match': {field_name: {'query': value}}}}
-
-                elif operator in ['gt', 'gte', 'lt', 'lte']:
-                    filtr = {'bool': {'must': [{'range': {field_name: {
-                        operator: value}}}]}}
-
-                elif operator == 'range':
-                    filtr = {'bool': {'must': [{'range': {field_name: {
-                        'gte': value[0],
-                        'lte': value[1]}}}]}}
-
+                if operator == 'contains':
+                    nested_update(filters,
+                                  {'query': {'match': {field_name: {'query': value}}}})
+                    if len(filters['query']['match'].items()) > 1:
+                        raise NotImplementedError("multi_match is not implemented.")
                 elif operator == 'isnull':
                     if value:
                         filtr = {'missing': {'field': field_name}}
                     else:
                         filtr = {'exists': {'field': field_name}}
 
-                nested_update(search['filter'], filtr)
+                    nested_update(filters, {'filter': filtr})
 
-            body['query'] = {'filtered': search}
+                else:
+                    if operator == 'exact':
+                        filtr = {'must': [{'term': {field_name: value}}]}
+
+                    elif operator == 'not':
+                        filtr = {'must_not': [{'term': {field_name: value}}]}
+
+                    elif operator == 'should':
+                        filtr = {operator: [{'term': {field_name: value}}]}
+
+                    elif operator in ['gt', 'gte', 'lt', 'lte']:
+                        filtr = {'must': [{'range': {field_name: {
+                            operator: value}}}]}
+
+                    elif operator == 'range':
+                        filtr = {'must': [{'range': {field_name: {
+                            'gte': value[0],
+                            'lte': value[1]}}}]}
+
+                    nested_update(filters, {'filter': {'bool': filtr}})
+
+            body = {'query': {'filtered': filters}}
+            if query:
+                body['query']['filtered']['query'] = query
         else:
-            body = search
+            if query:
+                body = {'query': query}
 
         return body
 

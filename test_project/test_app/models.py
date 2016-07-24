@@ -26,7 +26,9 @@ class TestModel(User, EsIndexable):
         index = 'django-test'
         doc_type = 'test-doc-type'
         mappings = {
-            "username": {"index": "not_analyzed"},
+            "username": {
+                "type": "string",
+                "index": "not_analyzed"},
             "date_joined_exp": {"type": "object"}
         }
         serializer_class = TestSerializer
