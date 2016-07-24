@@ -59,6 +59,14 @@ Like a regular Queryset, an EsQueryset is lazy, and if evaluated, returns a list
 
 > django-elasticsearch **DOES NOT** index documents by itself unless told to, either set settings.ELASTICSEARCH_AUTO_INDEX to True to index your models when you save them, or call directly myinstance.es.do_index().
 
+To specify the size of output of documents, it is necessary to make a slice of data, for example:
+
+```
+len(list(MyModel.es.search('value')))
+>>> 10
+len(list(MyModel.es.search('value')[0:100]))
+>>> 42
+```
 
 CONFIGURATION
 =============
@@ -88,7 +96,7 @@ Project scope configuration (django settings):
 
 * **ELASTICSEARCH_CONNECTION_KWARGS**  
     Defaults to {}  
-    Additional kwargs to be passed to at the instanciation of the elasticsearch client. Useful to manage HTTPS connection for example ([Reference](http://elasticsearch-py.readthedocs.org/en/master/api.html#elasticsearch.Elasticsearch)).
+    Additional kwargs to be passed to at the instantiation of the elasticsearch client. Useful to manage HTTPS connection for example ([Reference](http://elasticsearch-py.readthedocs.org/en/master/api.html#elasticsearch.Elasticsearch)).
 
 Model scope configuration:
 --------------------------
@@ -107,9 +115,9 @@ Each EsIndexable model receive an Elasticsearch class that contains its options 
     Defaults to None  
     The fields to be indexed by elasticsearch, if left to None, all models fields will be indexed.
 
-* **mapping**  
+* **mappings**  
     Defaults to None  
-    You can override some or all of the fields mapping with this dictionnary
+    You can override some or all of the fields mapping with this dictionary
     Example:  
     
     ```python
@@ -118,7 +126,7 @@ Each EsIndexable model receive an Elasticsearch class that contains its options 
         title = models.CharField(max_length=64)
         
         class Elasticsearch(EsIndexable.Elasticsearch):
-            mappings = {'title': {'boost': 2.0}
+            mappings = {'title': {'boost': 2.0}}
     ```
     In this example we only override the 'boost' attribute of the 'title' field, but there are plenty of possible configurations, see [the docs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-put-mapping.html).
 
@@ -163,7 +171,7 @@ The Elasticsearch manager is available from the 'es' attribute of EsIndexable Mo
             suggest_fields=None,
             suggest_limit=None,
             fuzziness=None)  
-    Returns a configurated EsQueryset with the given options, or the defaults set in ```EsIndexable.Elasticsearch```.  
+    Returns a configured EsQueryset with the given options, or the defaults set in ```EsIndexable.Elasticsearch```.  
   
 * **es.all**()  
     Proxy to an empty query ```.search("")```.
@@ -218,10 +226,10 @@ The Elasticsearch manager is available from the 'es' attribute of EsIndexable Mo
 
 EsQueryset API:
 ---------------
-This class is as close as possible to a standard relational db Queryset, however the db operations (update and delete) are disactivated (i'm open for discution on if and how to implement these). Note that just like regular Querysets, EsQuerysets are lazy, they can be ordered, filtered and faceted.  
+This class is as close as possible to a standard relational db Queryset, however the db operations (update and delete) are deactivated (i'm open for discussion on if and how to implement these). Note that just like regular Querysets, EsQuerysets are lazy, they can be ordered, filtered and faceted.  
 
 Note that the return value of the queryset is higly dependent on your mapping, for example, if you want to be able to do an exact filtering with filter() you need a field with {"index" : "not_analyzed"}.
-Also by defaut, filters are case insensitive, if you have a case sensitive tokenizer, you need to instanciate EsQueryset with ignore_case=False.
+Also by default, filters are case insensitive, if you have a case sensitive tokenizer, you need to instantiate EsQueryset with ignore_case=False.
 
 An EsQueryset acts a lot like a regular Queryset:
 ```
@@ -379,7 +387,7 @@ Two loggers are available 'elasticsearch' and 'elasticsearch.trace'.
 FAILING GRACEFULLY
 ==================
 
-You can catch ```elasticsearch.ConnectionError``` and ```elasticsearch.TransportError``` if you want to recover from an error on elasticsearch side. There is an exemple of it in ```django_elasticsearch.views.ElasticsearchListView```.
+You can catch ```elasticsearch.ConnectionError``` and ```elasticsearch.TransportError``` if you want to recover from an error on elasticsearch side. There is an example of it in ```django_elasticsearch.views.ElasticsearchListView```.
 You can also use the ```MyModel.es.check_cluster()``` method which returns True if the cluster is available, in case you want to make sure of it before doing anything.
 
 

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from django.test import TestCase
 from django.test.utils import override_settings
 from django.contrib.auth.models import Group
+from django.template import Template, Context
 
 from django_elasticsearch.client import es_client
 from django_elasticsearch.managers import EsQueryset
@@ -243,6 +244,7 @@ class EsQuerysetTestCase(TestCase):
         time.sleep(2)
 
         contents = TestModel.es.filter(date_joined_exp__iso__gte=self.t2.date_joined.isoformat()).deserialize()
+
         self.assertTrue(self.t1 not in contents)
         self.assertTrue(self.t2 in contents)
         self.assertTrue(self.t3 in contents)
@@ -355,3 +357,20 @@ class EsQuerysetTestCase(TestCase):
 
         # make sure it didn't break the query otherwise
         self.assertTrue(q.deserialize())
+
+    # some attributes were missing on the queryset
+    # raising an AttributeError when passed to a template
+    def test_qs_attributes_from_template(self):
+        qs = self.t1.es.all().order_by('id')
+        t = Template("{% for e in qs %}{{e.username}}. {% endfor %}")
+        expected = u'woot woot. woot. BigMama. foo. '
+        result = t.render(Context({'qs': qs}))
+        self.assertEqual(result, expected)
+
+    def test_prefetch_related(self):
+        with self.assertRaises(NotImplementedError):
+            TestModel.es.all().prefetch_related()
+
+    def test_range_plus_must(self):
+        q = TestModel.es.filter(date_joined__gt='now-10d').filter(first_name="John")
+        self.assertEqual(q.count(), 1)

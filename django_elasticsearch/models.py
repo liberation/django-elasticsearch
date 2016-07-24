@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
+from django import get_version
 from django.conf import settings
 from django.db.models import Model
 from django.db.models.signals import post_save, post_delete
+try:
+    from django.db.models.signals import post_migrate
+except ImportError:  # django <= 1.6
+    from django.db.models.signals import post_syncdb as post_migrate
+
 from django.db.models.signals import class_prepared
 try:
     from django.db.models.signals import post_migrate
@@ -73,9 +79,15 @@ def es_delete_callback(sender, instance, **kwargs):
 
 
 def es_syncdb_callback(sender, app=None, created_models=[], **kwargs):
-    for model in created_models:
+    if int(get_version()[2]) > 6:
+        models = sender.get_models()
+    else:
+        models = created_models
+    
+    for model in models:
         if issubclass(model, EsIndexable):
             model.es.create_index()
+
 
 if getattr(settings, 'ELASTICSEARCH_AUTO_INDEX', False):
     # Note: can't specify the sender class because EsIndexable is Abstract,
