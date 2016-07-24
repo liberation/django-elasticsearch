@@ -394,7 +394,7 @@ You can also use the ```MyModel.es.check_cluster()``` method which returns True 
 TESTS
 =====
 
-Django-elasticsearch has a 95% test coverage, and tests pass for django 1.4 to 1.8.
+Django-elasticsearch has a 95% test coverage, and tests pass for django 1.4 to 1.9.
 
 Using tox
 ---------

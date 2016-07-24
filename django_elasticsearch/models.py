@@ -1,8 +1,18 @@
 # -*- coding: utf-8 -*-
+from django import get_version
 from django.conf import settings
 from django.db.models import Model
-from django.db.models.signals import post_save, post_delete, post_syncdb
+from django.db.models.signals import post_save, post_delete
+try:
+    from django.db.models.signals import post_migrate
+except ImportError:  # django <= 1.6
+    from django.db.models.signals import post_syncdb as post_migrate
+
 from django.db.models.signals import class_prepared
+try:
+    from django.db.models.signals import post_migrate
+except ImportError:  # django <= 1.6
+    from django.db.models.signals import post_syncdb as post_migrate
 
 from django_elasticsearch.serializers import EsJsonSerializer
 from django_elasticsearch.managers import ElasticsearchManager
@@ -68,14 +78,20 @@ def es_delete_callback(sender, instance, **kwargs):
     instance.es.delete()
 
 
-def es_syncdb_callback(sender, app, created_models, **kwargs):
-    for model in created_models:
+def es_syncdb_callback(sender, app=None, created_models=[], **kwargs):
+    if int(get_version()[2]) > 6:
+        models = sender.get_models()
+    else:
+        models = created_models
+    
+    for model in models:
         if issubclass(model, EsIndexable):
             model.es.create_index()
+
 
 if getattr(settings, 'ELASTICSEARCH_AUTO_INDEX', False):
     # Note: can't specify the sender class because EsIndexable is Abstract,
     # see: https://code.djangoproject.com/ticket/9318
     post_save.connect(es_save_callback)
     post_delete.connect(es_delete_callback)
-    post_syncdb.connect(es_syncdb_callback)
+    post_migrate.connect(es_syncdb_callback)
