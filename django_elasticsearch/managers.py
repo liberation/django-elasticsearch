@@ -255,26 +255,28 @@ class ElasticsearchManager():
 
         for field_name in self.get_fields():
             try:
-                field = self.model._meta.get_field(field_name)
-            except FieldDoesNotExist:
-                # abstract field
-                mapping = {}
-            else:
-                mapping = {'type': ELASTICSEARCH_FIELD_MAP.get(
-                    field.get_internal_type(), 'string')}
+                mapping = self.model.Elasticsearch.mappings[field_name]
+            except (AttributeError, KeyError):
+                mapping = None
+            if mapping:
+                mappings[field_name] = mapping
+
             try:
                 # if an analyzer is set as default, use it.
                 # TODO: could be also tokenizer, filter, char_filter
-                if mapping['type'] == 'string':
-                    analyzer = settings.ELASTICSEARCH_SETTINGS['analysis']['default']
-                    mapping['analyzer'] = analyzer
+                try:
+                    field = self.model._meta.get_field(field_name)
+                except FieldDoesNotExist:
+                    # abstract field
+                    pass
+                else:
+                    mtype = ELASTICSEARCH_FIELD_MAP.get(field.get_internal_type(), 'string')
+                    if mtype == 'string':
+                        analyzer = settings.ELASTICSEARCH_SETTINGS['analysis']['default']
+                        mapping['type'] = 'string'
+                        mapping['analyzer'] = analyzer
             except (ValueError, AttributeError, KeyError, TypeError):
                 pass
-            try:
-                mapping.update(self.model.Elasticsearch.mappings[field_name])
-            except (AttributeError, KeyError, TypeError):
-                pass
-            mappings[field_name] = mapping
 
         # add a completion mapping for every auto completable field
         fields = self.model.Elasticsearch.completion_fields or []

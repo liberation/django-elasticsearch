@@ -228,8 +228,7 @@ EsQueryset API:
 ---------------
 This class is as close as possible to a standard relational db Queryset, however the db operations (update and delete) are deactivated (i'm open for discussion on if and how to implement these). Note that just like regular Querysets, EsQuerysets are lazy, they can be ordered, filtered and faceted.  
 
-Note that the return value of the queryset is higly dependent on your mapping, for example, if you want to be able to do an exact filtering with filter() you need a field with {"index" : "not_analyzed"}.
-Also by default, filters are case insensitive, if you have a case sensitive tokenizer, you need to instantiate EsQueryset with ignore_case=False.
+Note that the return value of the queryset is higly dependent on your mapping, for example, if you want to be able to do an exact filtering on a string with filter() you need a field with {"index" : "not_analyzed"}.
 
 An EsQueryset acts a lot like a regular Queryset:
 ```

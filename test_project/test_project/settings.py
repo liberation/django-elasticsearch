@@ -137,7 +137,6 @@ TEMPLATE_DIRS = (
 INSTALLED_APPS = (
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    'django_extensions',
     'django_elasticsearch',
     'test_app'
 )

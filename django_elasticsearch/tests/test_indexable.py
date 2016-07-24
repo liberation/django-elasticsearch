@@ -95,8 +95,8 @@ class EsIndexableTestCase(TestCase):
             "default": "test_analyzer",
             "analyzer": {
                 "test_analyzer": {
-                "type": "custom",
-                "tokenizer": "standard",
+                    "type": "custom",
+                    "tokenizer": "standard",
                 }
             }
         }
@@ -131,14 +131,14 @@ class EsIndexableTestCase(TestCase):
 
     @withattrs(TestModel.Elasticsearch, 'fields', ['username', 'date_joined'])
     def test_get_mapping(self):
+        # Reset the eventual cache on the Model mapping
         TestModel.es._mapping = None
         TestModel.es.flush()
         TestModel.es.do_update()
 
-        expected = {u'date_joined': {u'format': u'dateOptionalTime', u'type': u'date'},
-                    u'username': {u'index': u'not_analyzed', u'type': u'string'}}
+        expected = {u'username': {u'index': u'not_analyzed', u'type': u'string'},
+                    u'date_joined': {u'format': u'dateOptionalTime', u'type': u'date'}}
 
-        # Reset the eventual cache on the Model mapping
         mapping = TestModel.es.get_mapping()
         TestModel.es._mapping = None
         self.assertEqual(expected, mapping)
@@ -162,7 +162,7 @@ class EsIndexableTestCase(TestCase):
 
         q = TestModel.es.search('woot')
         self.assertTrue(self.instance in q.deserialize())  # evaluate
-        q = q.filter(last_name='grut')
+        q = q.filter(username='grut')
         self.assertFalse(self.instance in q.deserialize())  # evaluate
 
     def test_diff(self):
@@ -229,7 +229,7 @@ class EsAutoIndexTestCase(TestCase):
         self.instance.first_name = u'Test'
         self.instance.save()
         TestModel.es.do_update()
-        self.assertEqual(TestModel.es.filter(first_name=u'Test').count(), 1)
+        self.assertEqual(TestModel.es.search(u'Test').count(), 1)
 
     def test_auto_delete(self):
         self.instance.es.delete()
