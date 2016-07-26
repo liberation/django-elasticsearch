@@ -156,7 +156,12 @@ class EsQueryset(QuerySet):
                 if is_nested and isinstance(value, Model):
                     value = value.id
 
-                if operator == 'contains':
+                if operator == 'in':
+                    nested_update(filters,
+                                  {'query': {'filtered': {"filter": {'terms': { field_name: value }}}}})
+                    if len(filters['query']['filtered']["filter"]['terms'].items()) > 1:
+                        raise NotImplementedError("multi_terms is not implemented.")
+                elif operator == 'contains':
                     nested_update(filters,
                                   {'query': {'match': {field_name: {'query': value}}}})
                     if len(filters['query']['match'].items()) > 1:
@@ -321,7 +326,7 @@ class EsQueryset(QuerySet):
         return clone
 
     def sanitize_lookup(self, lookup):
-        valid_operators = ['exact', 'not', 'should', 'range', 'gt', 'lt', 'gte', 'lte', 'contains', 'isnull']
+        valid_operators = ['exact', 'not', 'should', 'range', 'gt', 'lt', 'gte', 'lte', 'contains', 'in', 'isnull']
         words = lookup.split('__')
         fields = [word for word in words if word not in valid_operators]
         # this is also django's default lookup type
