@@ -158,9 +158,9 @@ class EsQueryset(QuerySet):
 
                 if operator == 'contains':
                     nested_update(filters,
-                                  {'query': {'match': {field_name: {'query': value}}}})
-                    if len(filters['query']['match'].items()) > 1:
-                        raise NotImplementedError("multi_match is not implemented.")
+                                  {'query': {'filtered': {"filter": {'terms': { field_name: value }}}}})
+                    if len(filters['query']['filtered']["filter"]['terms'].items()) > 1:
+                        raise NotImplementedError("multi_terms is not implemented.")
                 elif operator == 'isnull':
                     if value:
                         filtr = {'missing': {'field': field_name}}
