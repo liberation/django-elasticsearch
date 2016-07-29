@@ -113,7 +113,7 @@ class EsQuerysetTestCase(TestCase):
             u'last_name': [
                 {u'length': 5,
                  u'offset': 0,
-                 u'options': [{u'freq': 3,
+                 u'options': [{u'freq': 6,
                                u'score': 0.8,
                                u'text': u'smith'}],
                  u'text': u'smath'}]}
