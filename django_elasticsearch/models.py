@@ -31,6 +31,7 @@ class EsIndexable(Model):
         mapping = None
         serializer_class = EsJsonSerializer
         fields = None
+        sort_fields = None
         facets_limit = 10
         facets_fields = None
         # http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-suggesters-term.html

@@ -154,6 +154,10 @@ Each EsIndexable model receive an Elasticsearch class that contains its options 
     Defaults to None  
     The fields on which to activate auto-completion (needs a specific mapping).
 
+* **sort_fields**  
+    Defaults to None  
+    A list of fields that will receive a specific mapping for sorting purposes. (See [this](https://www.elastic.co/guide/en/elasticsearch/guide/1.x/multi-fields.html))
+
 API
 ===
 
