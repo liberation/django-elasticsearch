@@ -1,5 +1,6 @@
 import json
 import datetime
+from dateutil.parser import parse
 
 from django.db.models import FieldDoesNotExist
 from django.db.models.fields.related import ManyToManyField
@@ -64,7 +65,7 @@ class EsJsonToModelMixin(object):
         # datetime
         typ = field.get_internal_type()
         if val and typ in ('DateField', 'DateTimeField'):
-            return datetime.datetime.strptime(val, '%Y-%m-%dT%H:%M:%S.%f')
+            return parse(val)
 
         if field.rel:
             # M2M
