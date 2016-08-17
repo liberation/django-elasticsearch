@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
-from elasticsearch import NotFoundError
-
+from django import get_version
 from django.test import TestCase
 from django.test.utils import override_settings
+from elasticsearch import NotFoundError
+from test_app.models import TestModel, Test2Model
 
 from django_elasticsearch.managers import es_client
 from django_elasticsearch.tests.utils import withattrs
-
-from test_app.models import TestModel
-
-from django import get_version
 
 
 class EsIndexableTestCase(TestCase):
@@ -95,8 +92,8 @@ class EsIndexableTestCase(TestCase):
             "default": "test_analyzer",
             "analyzer": {
                 "test_analyzer": {
-                "type": "custom",
-                "tokenizer": "standard",
+                    "type": "custom",
+                    "tokenizer": "standard",
                 }
             }
         }
@@ -131,7 +128,7 @@ class EsIndexableTestCase(TestCase):
 
     @withattrs(TestModel.Elasticsearch, 'fields', ['username', 'date_joined'])
     def test_get_mapping(self):
-        TestModel.es._mapping = None
+        TestModel.es._full_mapping = None
         TestModel.es.flush()
         TestModel.es.do_update()
 
@@ -140,7 +137,23 @@ class EsIndexableTestCase(TestCase):
 
         # Reset the eventual cache on the Model mapping
         mapping = TestModel.es.get_mapping()
-        TestModel.es._mapping = None
+        TestModel.es._full_mapping = None
+        self.assertEqual(expected, mapping)
+
+    @withattrs(TestModel.Elasticsearch, 'fields', ['username', 'date_joined'])
+    def test_get_full_mapping(self):
+        TestModel.es._full_mapping = None
+        TestModel.es.flush()
+        TestModel.es.do_update()
+
+        expected = {u'django-test': {u'mappings': {u'test-doc-type': {u'properties': {
+            u'date_joined': {u'format': u'dateOptionalTime', u'type': u'date'},
+            u'username': {u'index': u'not_analyzed', u'type': u'string'}
+        }}}}}
+
+        # Reset the eventual cache on the Model mapping
+        mapping = TestModel.es.get_full_mapping()
+        TestModel.es._full_mapping = None
         self.assertEqual(expected, mapping)
 
     def test_get_settings(self):
@@ -171,8 +184,8 @@ class EsIndexableTestCase(TestCase):
 
         expected = {
             u'first_name': {
-            'es': u'woot',
-            'db': u'pouet'
+                'es': u'woot',
+                'db': u'pouet'
             }
         }
 
@@ -209,7 +222,7 @@ class EsAutoIndexTestCase(TestCase):
         post_save.connect(es_save_callback)
         post_delete.connect(es_delete_callback)
         post_migrate.connect(es_syncdb_callback)
-        
+
         if int(get_version()[2]) >= 6:
             sender = app
         else:

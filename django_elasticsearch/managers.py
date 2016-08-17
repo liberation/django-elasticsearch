@@ -65,7 +65,7 @@ class ElasticsearchManager():
             self.model = k
 
         self.serializer = None
-        self._mapping = None
+        self._full_mapping = None
 
     def get_index(self):
         return self.model.Elasticsearch.index
@@ -300,14 +300,14 @@ class ElasticsearchManager():
             }
         }
 
-    def get_mapping(self):
-        if self._mapping is None:
-            # TODO: could be done once for every index/doc_type ?
-            full_mapping = es_client.indices.get_mapping(index=self.index,
-                                                         doc_type=self.doc_type)
-            self._mapping = full_mapping[self.index]['mappings'][self.doc_type]['properties']
+    def get_full_mapping(self):
+        if self._full_mapping is None:
+            self._full_mapping = es_client.indices.get_mapping(index=self.index, doc_type=self.doc_type)
 
-        return self._mapping
+        return self._full_mapping
+
+    def get_mapping(self):
+        return self.get_full_mapping()[self.index]['mappings'][self.doc_type]['properties']
 
     def get_settings(self):
         """

@@ -220,7 +220,7 @@ class EsQuerysetTestCase(TestCase):
     @withattrs(TestModel.Elasticsearch, 'fields', ['id', 'date_joined_exp'])
     def test_sub_object_lookup(self):
         TestModel.es._fields = None
-        TestModel.es._mapping = None
+        TestModel.es._full_mapping = None
         TestModel.es.flush()  # update the mapping
         time.sleep(2)
 
@@ -232,14 +232,14 @@ class EsQuerysetTestCase(TestCase):
         self.assertEqual(qs.count(), 4)
 
     def test_nested_filter(self):
-        TestModel.es._mapping = None
+        TestModel.es._full_mapping = None
         qs = TestModel.es.filter(groups=self.group)
         self.assertEqual(qs.count(), 1)
 
     @withattrs(TestModel.Elasticsearch, 'fields', ['id', 'date_joined_exp'])
     def test_filter_date_range(self):
         TestModel.es._fields = None
-        TestModel.es._mapping = None
+        TestModel.es._full_mapping = None
         TestModel.es.flush()  # update the mapping
         time.sleep(2)
 
@@ -303,7 +303,7 @@ class EsQuerysetTestCase(TestCase):
     @withattrs(TestModel.Elasticsearch, 'mappings', {})
     def test_contains(self):
         TestModel.es._fields = None
-        TestModel.es._mapping = None
+        TestModel.es._full_mapping = None
         TestModel.es.flush()  # update the mapping, username is now analyzed
         time.sleep(2)  # TODO: flushing is not immediate, find a better way
         contents = TestModel.es.filter(username__contains='woot').deserialize()
