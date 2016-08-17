@@ -14,6 +14,8 @@ from django.db.models import FieldDoesNotExist
 
 from django_elasticsearch.query import EsQueryset
 from django_elasticsearch.client import es_client
+import inspect
+
 
 # Note: we use long/double because different db backends
 # could store different sizes of numerics ?
@@ -65,7 +67,7 @@ class ElasticsearchManager():
             self.model = k
 
         self.serializer = None
-        self._mapping = None
+        self._full_mapping = None
 
     def get_index(self):
         return self.model.Elasticsearch.index
@@ -121,11 +123,26 @@ class ElasticsearchManager():
 
     @needs_instance
     def do_index(self):
-        body = self.serialize()
-        es_client.index(index=self.index,
-                        doc_type=self.doc_type,
-                        id=self.instance.id,
-                        body=body)
+        kwargs = {
+            'index': self.index,
+            'doc_type': self.doc_type,
+            'id': self.instance.id,
+            'body': self.serialize()
+        }
+
+        parent = self.model.Elasticsearch.parent_model
+        if parent:
+            parent.es.create_index()
+            parent_instance = None
+            for member in inspect.getmembers(self.instance):
+                value = member[1]
+                if isinstance(value, parent):
+                    parent_instance = value
+                    break
+            parent_instance.es.do_index()
+            kwargs.update({'parent': parent_instance.id})
+
+        es_client.index(**kwargs)
 
     @needs_instance
     def delete(self):
@@ -253,6 +270,8 @@ class ElasticsearchManager():
         """
         mappings = {}
 
+        sort_fields = self.model.Elasticsearch.sort_fields
+
         for field_name in self.get_fields():
             try:
                 field = self.model._meta.get_field(field_name)
@@ -274,6 +293,16 @@ class ElasticsearchManager():
                 mapping.update(self.model.Elasticsearch.mappings[field_name])
             except (AttributeError, KeyError, TypeError):
                 pass
+
+            if sort_fields is not None and field_name in sort_fields:
+                if 'type' in mapping and mapping.get('type') == 'string':
+                    mapping['fields'] = {
+                        'raw': {
+                            'type': 'string',
+                            'index': 'not_analyzed'
+                        }
+                    }
+
             mappings[field_name] = mapping
 
         # add a completion mapping for every auto completable field
@@ -282,20 +311,29 @@ class ElasticsearchManager():
             complete_name = "{0}_complete".format(field_name)
             mappings[complete_name] = {"type": "completion"}
 
-        return {
+        es_mapping = {
             self.doc_type: {
                 "properties": mappings
             }
         }
 
-    def get_mapping(self):
-        if self._mapping is None:
-            # TODO: could be done once for every index/doc_type ?
-            full_mapping = es_client.indices.get_mapping(index=self.index,
-                                                         doc_type=self.doc_type)
-            self._mapping = full_mapping[self.index]['mappings'][self.doc_type]['properties']
+        parent = self.model.Elasticsearch.parent_model
+        if parent:
+            parent.es.create_index()
+            es_mapping[self.doc_type]['_parent'] = {
+                'type': parent.es.doc_type
+            }
 
-        return self._mapping
+        return es_mapping
+
+    def get_full_mapping(self):
+        if self._full_mapping is None:
+            self._full_mapping = es_client.indices.get_mapping(index=self.index, doc_type=self.doc_type)
+
+        return self._full_mapping
+
+    def get_mapping(self):
+        return self.get_full_mapping()[self.index]['mappings'][self.doc_type]['properties']
 
     def get_settings(self):
         """
@@ -332,7 +370,6 @@ class ElasticsearchManager():
         body = {}
         if hasattr(settings, 'ELASTICSEARCH_SETTINGS'):
             body['settings'] = settings.ELASTICSEARCH_SETTINGS
-
         es_client.indices.create(self.index,
                                  body=body,
                                  ignore=ignore and 400)
