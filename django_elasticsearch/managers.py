@@ -15,6 +15,7 @@ from django.db.models import FieldDoesNotExist
 from django_elasticsearch.query import EsQueryset
 from django_elasticsearch.client import es_client
 
+
 # Note: we use long/double because different db backends
 # could store different sizes of numerics ?
 # Note: everything else is mapped to a string
@@ -294,11 +295,20 @@ class ElasticsearchManager():
             complete_name = "{0}_complete".format(field_name)
             mappings[complete_name] = {"type": "completion"}
 
-        return {
+        es_mapping = {
             self.doc_type: {
                 "properties": mappings
             }
         }
+
+        parent = self.model.Elasticsearch.parent_model
+        if parent:
+            parent.es.create_index()
+            es_mapping[self.doc_type]['_parent'] = {
+                'type': parent.Elasticsearch.doc_type
+            }
+
+        return es_mapping
 
     def get_full_mapping(self):
         if self._full_mapping is None:

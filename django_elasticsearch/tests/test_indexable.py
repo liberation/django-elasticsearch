@@ -156,6 +156,34 @@ class EsIndexableTestCase(TestCase):
         TestModel.es._full_mapping = None
         self.assertEqual(expected, mapping)
 
+    @withattrs(TestModel.Elasticsearch, 'fields', ['username', 'date_joined'])
+    @withattrs(Test2Model.Elasticsearch, 'doc_type', 'test-2-doc-type')
+    @withattrs(Test2Model.Elasticsearch, 'fields', ['text', 'email'])
+    @withattrs(Test2Model.Elasticsearch, 'parent_model', TestModel)
+    def test_get_parent_mapping(self):
+        self.maxDiff = None
+        Test2Model.es._full_mapping = None
+        Test2Model.es.flush()
+        Test2Model.es.do_update()
+
+        expected = {u'django-test': {u'mappings': {u'test-2-doc-type': {
+            u'properties': {
+                u'text': {u'type': u'string'},
+                u'email': {u'type': u'string'}
+            },
+            u'_routing': {
+                u'required': True
+            },
+            u'_parent': {
+                u'type': u'test-doc-type'
+            }
+        }}}}
+
+        # Reset the eventual cache on the Model mapping
+        mapping = Test2Model.es.get_full_mapping()
+        Test2Model.es._full_mapping = None
+        self.assertEqual(expected, mapping)
+
     def test_get_settings(self):
         # Note i don't really know what's in there so i just check
         # it doesn't crash and deserialize well.
