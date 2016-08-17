@@ -14,6 +14,7 @@ from django.db.models import FieldDoesNotExist
 
 from django_elasticsearch.query import EsQueryset
 from django_elasticsearch.client import es_client
+import inspect
 
 
 # Note: we use long/double because different db backends
@@ -122,11 +123,26 @@ class ElasticsearchManager():
 
     @needs_instance
     def do_index(self):
-        body = self.serialize()
-        es_client.index(index=self.index,
-                        doc_type=self.doc_type,
-                        id=self.instance.id,
-                        body=body)
+        kwargs = {
+            'index': self.index,
+            'doc_type': self.doc_type,
+            'id': self.instance.id,
+            'body': self.serialize()
+        }
+
+        parent = self.model.Elasticsearch.parent_model
+        if parent:
+            parent.es.create_index()
+            parent_instance = None
+            for member in inspect.getmembers(self.instance):
+                value = member[1]
+                if isinstance(value, parent):
+                    parent_instance = value
+                    break
+            parent_instance.es.do_index()
+            kwargs.update({'parent': parent_instance.id})
+
+        es_client.index(**kwargs)
 
     @needs_instance
     def delete(self):
@@ -305,7 +321,7 @@ class ElasticsearchManager():
         if parent:
             parent.es.create_index()
             es_mapping[self.doc_type]['_parent'] = {
-                'type': parent.Elasticsearch.doc_type
+                'type': parent.es.doc_type
             }
 
         return es_mapping
@@ -354,7 +370,6 @@ class ElasticsearchManager():
         body = {}
         if hasattr(settings, 'ELASTICSEARCH_SETTINGS'):
             body['settings'] = settings.ELASTICSEARCH_SETTINGS
-
         es_client.indices.create(self.index,
                                  body=body,
                                  ignore=ignore and 400)
