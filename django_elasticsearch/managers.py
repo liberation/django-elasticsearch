@@ -253,6 +253,8 @@ class ElasticsearchManager():
         """
         mappings = {}
 
+        sort_fields = self.model.Elasticsearch.sort_fields
+
         for field_name in self.get_fields():
             try:
                 field = self.model._meta.get_field(field_name)
@@ -274,6 +276,16 @@ class ElasticsearchManager():
                 mapping.update(self.model.Elasticsearch.mappings[field_name])
             except (AttributeError, KeyError, TypeError):
                 pass
+
+            if sort_fields is not None and field_name in sort_fields:
+                if 'type' in mapping and mapping.get('type') == 'string':
+                    mapping['fields'] = {
+                        'raw': {
+                            'type': 'string',
+                            'index': 'not_analyzed'
+                        }
+                    }
+
             mappings[field_name] = mapping
 
         # add a completion mapping for every auto completable field
