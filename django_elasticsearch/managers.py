@@ -87,12 +87,22 @@ class ElasticsearchManager():
 
     def get_serializer(self, **kwargs):
         serializer = self.model.Elasticsearch.serializer_class
-        if isinstance(serializer, basestring):
-            module, kls = self.model.Elasticsearch.serializer_class.rsplit(".", 1)
-            mod = importlib.import_module(module)
-            return getattr(mod, kls)(self.model, **kwargs)
-        else:
-            return serializer(self.model, **kwargs)
+
+        # python 2.x
+        try:
+            if isinstance(serializer, basestring):
+                module, kls = self.model.Elasticsearch.serializer_class.rsplit(".", 1)
+                mod = importlib.import_module(module)
+                return getattr(mod, kls)(self.model, **kwargs)
+
+        # python 3.x
+        except NameError:
+            if isinstance(serializer, str):
+                module, kls = self.model.Elasticsearch.serializer_class.rsplit(".", 1)
+                mod = importlib.import_module(module)
+                return getattr(mod, kls)(self.model, **kwargs)
+
+        return serializer(self.model, **kwargs)
 
     @needs_instance
     def serialize(self):
