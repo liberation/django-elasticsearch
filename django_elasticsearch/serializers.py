@@ -4,6 +4,13 @@ import datetime
 from django.db.models import FieldDoesNotExist
 from django.db.models.fields.related import ManyToManyField
 
+try:
+    # python 2.x
+    UNICODE_PY2X = bool(type(unicode))
+except NameError:
+    # python 3.x
+    unicode = lambda s: str(s)
+
 
 class EsSerializer(object):
     def serialize(self, instance):
