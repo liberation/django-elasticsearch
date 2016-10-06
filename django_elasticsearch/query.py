@@ -220,7 +220,8 @@ class EsQueryset(QuerySet):
                 for field in self.facets_fields
             ])
             if self.facets_limit:
-                aggs[field]['terms']['size'] = self.facets_limit
+                for field in self.facets_fields:
+                    aggs[field]['terms']['size'] = self.facets_limit
 
             if self.global_facets:
                 aggs = {'global_count': {'global': {}, 'aggs': aggs}}
