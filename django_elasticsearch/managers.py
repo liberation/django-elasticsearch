@@ -245,7 +245,11 @@ class ElasticsearchManager():
         model_fields = [f.name for f in self.model._meta.fields +
                         self.model._meta.many_to_many]
 
-        return self.model.Elasticsearch.fields or model_fields
+        ret = self.model.Elasticsearch.fields or model_fields
+        excludes = self.model.Elasticsearch.exclude_fields
+        if excludes:
+            ret = [i for i in ret if i not in excludes]
+        return ret
 
     def make_mapping(self):
         """
