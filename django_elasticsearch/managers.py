@@ -5,12 +5,17 @@ try:
 except ImportError:  # python < 2.7
     from django.utils import importlib
 
+from django import VERSION as django_version
 from django.conf import settings
 try:
     from django.utils import importlib
 except:
     import importlib
-from django.db.models import FieldDoesNotExist
+
+if django_version < (3, 1, 0):
+    from django.db.models import FieldDoesNotExist
+else:
+    from django.core.exceptions import FieldDoesNotExist
 
 from django_elasticsearch.query import EsQueryset
 from django_elasticsearch.client import es_client
