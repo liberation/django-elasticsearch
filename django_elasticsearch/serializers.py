@@ -1,7 +1,13 @@
 import json
 import datetime
 
-from django.db.models import FieldDoesNotExist
+from django import VERSION as django_version
+
+if django_version < (3, 1, 0):
+    from django.db.models import FieldDoesNotExist
+else:
+    from django.core.exceptions import FieldDoesNotExist
+
 from django.db.models.fields.related import ManyToManyField
 
 
